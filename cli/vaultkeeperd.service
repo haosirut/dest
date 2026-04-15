@@ -1,0 +1,28 @@
+[Unit]
+Description=VaultKeeper P2P Storage Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vaultkeeper
+Group=vaultkeeper
+ExecStart=/usr/local/bin/vaultkeeperd daemon --data-dir /var/lib/vaultkeeper
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/vaultkeeper
+PrivateTmp=true
+
+# Sandboxing
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+CapabilityBoundingSet=
+MemoryMax=2G
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

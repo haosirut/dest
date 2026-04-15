@@ -1,0 +1,46 @@
+# Rust
+/target/
+**/target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tauri
+tauri/src-tauri/target/
+tauri/src-tauri/WixTools/
+tauri/src-tauri/gen/
+
+# Build artifacts
+*.d
+*.rlib
+*.dll
+*.dylib
+*.so
+*.exe
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# Reports (generated locally)
+build_report.txt
+cross_compile_report.txt
+security_audit_report.txt
+docs_report.txt

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VaultKeeper — P2P Хранилище</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <h1>VaultKeeper</h1>
+            <span class="version">v0.1.0</span>
+        </header>
+        <nav class="nav">
+            <button class="nav-btn active" data-tab="dashboard">Панель</button>
+            <button class="nav-btn" data-tab="files">Файлы</button>
+            <button class="nav-btn" data-tab="balance">Баланс</button>
+            <button class="nav-btn" data-tab="keys">Ключи</button>
+            <button class="nav-btn" data-tab="settings">Настройки</button>
+        </nav>
+        <main class="content">
+            <section id="dashboard" class="tab active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Статус</div>
+                        <div class="stat-value" id="status">Загрузка...</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Баланс</div>
+                        <div class="stat-value" id="balance">0.00 RUB</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Подключено узлов</div>
+                        <div class="stat-value" id="peers">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Хранимые данные</div>
+                        <div class="stat-value" id="storage">0 B</div>
+                    </div>
+                </div>
+            </section>
+            <section id="files" class="tab">
+                <div class="upload-area" id="drop-zone">
+                    <p>Перетащите файлы сюда для загрузки</p>
+                    <input type="file" id="file-input" multiple hidden>
+                    <button class="btn btn-primary" id="upload-btn">Выбрать файлы</button>
+                </div>
+                <div id="file-list" class="file-list"></div>
+            </section>
+            <section id="balance" class="tab">
+                <div class="balance-section">
+                    <h2>Состояние счёта</h2>
+                    <div class="balance-display">
+                        <span id="balance-amount">0.00</span>
+                        <span class="currency">RUB</span>
+                    </div>
+                    <div class="balance-actions">
+                        <button class="btn btn-primary">Пополнить</button>
+                        <button class="btn btn-secondary">Вывести</button>
+                    </div>
+                </div>
+                <div class="subscription-section">
+                    <h2>Подписка</h2>
+                    <div class="subscription-tiers">
+                        <div class="tier-card">
+                            <h3>Архив</h3>
+                            <div class="price">0 RUB/мес</div>
+                            <ul>
+                                <li>1× репликация</li>
+                                <li>HDD хранение</li>
+                                <li>10 МБ/с загрузка</li>
+                            </ul>
+                        </div>
+                        <div class="tier-card recommended">
+                            <h3>Стандарт</h3>
+                            <div class="price">199 RUB/мес</div>
+                            <ul>
+                                <li>2× репликация</li>
+                                <li>SSD хранение</li>
+                                <li>50 МБ/с загрузка</li>
+                            </ul>
+                        </div>
+                        <div class="tier-card">
+                            <h3>Премиум</h3>
+                            <div class="price">499 RUB/мес</div>
+                            <ul>
+                                <li>3× репликация</li>
+                                <li>NVMe хранение</li>
+                                <li>Безлимит скорость</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section id="keys" class="tab">
+                <div class="keys-section">
+                    <h2>Управление ключами</h2>
+                    <p class="warning">Ключи шифрования НИКОГДА не покидают ваше устройство.</p>
+                    <button class="btn btn-primary" id="generate-keys">Сгенерировать ключи</button>
+                    <button class="btn btn-secondary" id="backup-keys">Создать резервную копию (BIP39)</button>
+                    <div id="mnemonic-display" class="mnemonic-display hidden"></div>
+                </div>
+            </section>
+            <section id="settings" class="tab">
+                <div class="settings-section">
+                    <h2>Настройки</h2>
+                    <div class="setting-item">
+                        <label>P2P порт</label>
+                        <input type="number" value="9444" id="p2p-port">
+                    </div>
+                    <div class="setting-item">
+                        <label>API порт</label>
+                        <input type="number" value="8080" id="api-port">
+                    </div>
+                    <div class="setting-item">
+                        <label>Директория данных</label>
+                        <input type="text" value="~/.vaultkeeper" id="data-dir">
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

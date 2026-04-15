@@ -1,0 +1,31 @@
+[package]
+name = "vaultkeeper-core"
+version.workspace = true
+edition.workspace = true
+description = "Core cryptographic primitives: encryption, chunking, erasure coding, BIP39, Merkle trees"
+
+[dependencies]
+x25519-dalek.workspace = true
+ed25519-dalek.workspace = true
+chacha20poly1305.workspace = true
+argon2.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+reed-solomon-erasure.workspace = true
+bip39.workspace = true
+hex.workspace = true
+zeroize.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

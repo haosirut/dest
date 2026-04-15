@@ -1,0 +1,31 @@
+[package]
+name = "vaultkeeper-p2p"
+version.workspace = true
+edition.workspace = true
+description = "P2P networking: libp2p, Kademlia DHT, GossipSub, heartbeat, offline ledger sync"
+
+[dependencies]
+vaultkeeper-core = { path = "../core" }
+libp2p.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+ed25519-dalek.workspace = true
+rand.workspace = true
+sha2.workspace = true
+blake3.workspace = true
+chrono.workspace = true
+hex.workspace = true
+parking_lot.workspace = true
+dashmap.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

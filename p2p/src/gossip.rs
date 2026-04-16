@@ -1,12 +1,12 @@
 //! GossipSub message broadcasting for ledger sync, chunk announcements, etc.
 
-use crate::message::{GossipMessage, GossipTopic, P2pMessage};
+use crate::message::{GossipMessage, P2pMessage};
 use anyhow::Result;
 use std::collections::{HashMap, HashSet, VecDeque};
-use tracing::{debug, info, warn};
+use tracing::debug;
 
-/// Message priority levels for weighted scheduling
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Message priority levels for weighted scheduling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MessagePriority {
     Low = 0,
     Normal = 1,
@@ -14,7 +14,22 @@ pub enum MessagePriority {
     Critical = 3,
 }
 
-/// GossipSub message queue with priority support
+impl std::fmt::Display for MessagePriority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MessagePriority::Low => write!(f, "Low"),
+            MessagePriority::Normal => write!(f, "Normal"),
+            MessagePriority::High => write!(f, "High"),
+            MessagePriority::Critical => write!(f, "Critical"),
+        }
+    }
+}
+
+/// GossipSub message queue with priority support.
+///
+/// Messages are stored in per-priority queues and dequeued in priority order
+/// (Critical > High > Normal > Low). Within the same priority, FIFO ordering
+/// is maintained.
 pub struct GossipQueue {
     queues: HashMap<MessagePriority, VecDeque<GossipMessage>>,
     max_queue_size: usize,
@@ -22,6 +37,7 @@ pub struct GossipQueue {
 }
 
 impl GossipQueue {
+    /// Create a new gossip queue with the given maximum capacity.
     pub fn new(max_queue_size: usize) -> Self {
         let mut queues = HashMap::new();
         queues.insert(MessagePriority::Critical, VecDeque::new());
@@ -35,7 +51,7 @@ impl GossipQueue {
         }
     }
 
-    /// Enqueue a message with priority
+    /// Enqueue a message with the given priority.
     pub fn enqueue(
         &mut self,
         priority: MessagePriority,
@@ -56,10 +72,14 @@ impl GossipQueue {
         self.sequence_counter += 1;
 
         self.queues.get_mut(&priority).unwrap().push_back(gossip_msg);
+        debug!(
+            "Enqueued gossip message (priority={}, seq={})",
+            priority, self.sequence_counter - 1
+        );
         Ok(())
     }
 
-    /// Dequeue next message (highest priority first)
+    /// Dequeue the next message (highest priority first, FIFO within same priority).
     pub fn dequeue(&mut self) -> Option<GossipMessage> {
         for priority in &[
             MessagePriority::Critical,
@@ -74,17 +94,40 @@ impl GossipQueue {
         None
     }
 
-    /// Get total queue size
+    /// Get total number of messages across all priority queues.
     pub fn len(&self) -> usize {
         self.queues.values().map(|q| q.len()).sum()
     }
 
+    /// Check if all queues are empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Get the number of messages in a specific priority queue.
+    pub fn priority_len(&self, priority: MessagePriority) -> usize {
+        self.queues.get(&priority).map(|q| q.len()).unwrap_or(0)
+    }
+
+    /// Peek at the next message without removing it.
+    pub fn peek(&self) -> Option<&GossipMessage> {
+        for priority in &[
+            MessagePriority::Critical,
+            MessagePriority::High,
+            MessagePriority::Normal,
+            MessagePriority::Low,
+        ] {
+            if let Some(msg) = self.queues.get(priority).and_then(|q| q.front()) {
+                return Some(msg);
+            }
+        }
+        None
+    }
 }
 
-/// Tracks seen messages to prevent duplicate processing
+/// Tracks seen messages to prevent duplicate processing.
+///
+/// Uses a bounded HashSet that evicts old entries when capacity is reached.
 pub struct SeenMessages {
     seen: HashSet<u64>,
     max_size: usize,
@@ -105,7 +148,7 @@ impl SeenMessages {
             return false;
         }
         if self.seen.len() >= self.max_size {
-            // Remove oldest entries (simplified: clear half)
+            // Evict oldest entries (simplified: clear first half)
             let to_remove = self.max_size / 2;
             let mut count = 0;
             self.seen.retain(|_| {
@@ -117,12 +160,28 @@ impl SeenMessages {
         true
     }
 
+    /// Check if a sequence number has been seen without marking it.
     pub fn contains(&self, seq: u64) -> bool {
         self.seen.contains(&seq)
     }
+
+    /// Get the number of seen message entries.
+    pub fn len(&self) -> usize {
+        self.seen.len()
+    }
+
+    /// Clear all seen message entries.
+    pub fn clear(&mut self) {
+        self.seen.clear();
+    }
 }
 
-/// Determine message priority based on type and subscription tier
+/// Determine message priority based on message type and subscription weight.
+///
+/// Subscription weight ranges:
+/// - 1: Free/archive tier
+/// - 2: Standard tier
+/// - 3: Premium tier
 pub fn get_message_priority(message: &P2pMessage, subscription_weight: u8) -> MessagePriority {
     match message {
         P2pMessage::HeartbeatAck { .. } => MessagePriority::Low,
@@ -134,9 +193,7 @@ pub fn get_message_priority(message: &P2pMessage, subscription_weight: u8) -> Me
                 MessagePriority::Normal
             }
         }
-        P2pMessage::LedgerSync { .. } | P2pMessage::LedgerRequest { .. } => {
-            MessagePriority::High
-        }
+        P2pMessage::LedgerSync { .. } | P2pMessage::LedgerRequest { .. } => MessagePriority::High,
         P2pMessage::ChallengeRequest { .. } | P2pMessage::ChallengeResponse { .. } => {
             MessagePriority::High
         }
@@ -154,12 +211,13 @@ pub fn get_message_priority(message: &P2pMessage, subscription_weight: u8) -> Me
                 MessagePriority::Normal
             }
         }
+        P2pMessage::HostAvailable { .. } => MessagePriority::High,
     }
 }
 
-/// Determine subscription weight from tier name
+/// Determine subscription weight from tier name.
 pub fn subscription_weight_from_tier(tier: &str) -> u8 {
-    match tier {
+    match tier.to_lowercase().as_str() {
         "premium" => 3,
         "standard" => 2,
         _ => 1,
@@ -189,17 +247,21 @@ mod tests {
                 MessagePriority::Critical,
                 "p2",
                 P2pMessage::ReplicationRequest {
-                    chunk_id: vaultkeeper_core::ChunkId::new(b"test"),
+                    chunk_id: vaultkeeper_core::types::ChunkId::new(b"test"),
                     target_shards: vec![0],
                 },
             )
             .unwrap();
 
         let first = queue.dequeue().unwrap();
-        match first.message {
+        match &first.message {
             P2pMessage::ReplicationRequest { .. } => {}
             _ => panic!("Expected critical priority message first"),
         }
+
+        // Second should be the low-priority one
+        let second = queue.dequeue().unwrap();
+        assert_eq!(second.sender_peer_id, "p1");
     }
 
     #[test]
@@ -230,6 +292,8 @@ mod tests {
 
         let first = queue.dequeue().unwrap();
         assert_eq!(first.sender_peer_id, "p1");
+        let second = queue.dequeue().unwrap();
+        assert_eq!(second.sender_peer_id, "p2");
     }
 
     #[test]
@@ -281,9 +345,22 @@ mod tests {
     }
 
     #[test]
+    fn test_seen_messages_eviction() {
+        let mut seen = SeenMessages::new(10);
+        for i in 0..10 {
+            assert!(seen.check_and_mark(i));
+        }
+        // Queue is full. Adding one more should trigger eviction.
+        assert!(seen.check_and_mark(100));
+        // After eviction of first 5, 0..5 may or may not be present depending on eviction order.
+        // But 100 must be present.
+        assert!(seen.contains(100));
+    }
+
+    #[test]
     fn test_message_priority_by_tier() {
         let msg = P2pMessage::ReplicationRequest {
-            chunk_id: vaultkeeper_core::ChunkId::new(b"test"),
+            chunk_id: vaultkeeper_core::types::ChunkId::new(b"test"),
             target_shards: vec![0],
         };
         let weight_free = subscription_weight_from_tier("archive");
@@ -293,12 +370,73 @@ mod tests {
         let priority_premium = get_message_priority(&msg, weight_premium);
 
         assert!(priority_premium > priority_free);
+        assert_eq!(priority_free, MessagePriority::High);
+        assert_eq!(priority_premium, MessagePriority::Critical);
     }
 
     #[test]
     fn test_subscription_weight() {
         assert_eq!(subscription_weight_from_tier("premium"), 3);
+        assert_eq!(subscription_weight_from_tier("Premium"), 3); // case insensitive
         assert_eq!(subscription_weight_from_tier("standard"), 2);
+        assert_eq!(subscription_weight_from_tier("Standard"), 2); // case insensitive
         assert_eq!(subscription_weight_from_tier("archive"), 1);
+        assert_eq!(subscription_weight_from_tier("free"), 1);
+        assert_eq!(subscription_weight_from_tier("unknown"), 1);
+    }
+
+    #[test]
+    fn test_host_available_priority() {
+        let msg = P2pMessage::HostAvailable {
+            node_id: "host1".to_string(),
+            peer_id: "p1".to_string(),
+            available_space: 100,
+            last_seen_timestamp: 0,
+        };
+        let priority = get_message_priority(&msg, 1);
+        assert_eq!(priority, MessagePriority::High);
+    }
+
+    #[test]
+    fn test_queue_len_and_is_empty() {
+        let queue = GossipQueue::new(100);
+        assert!(queue.is_empty());
+        assert_eq!(queue.len(), 0);
+    }
+
+    #[test]
+    fn test_queue_priority_len() {
+        let mut queue = GossipQueue::new(100);
+        queue
+            .enqueue(
+                MessagePriority::Critical,
+                "p1",
+                P2pMessage::NodeJoin {
+                    node_id: "n1".into(),
+                    peer_id: "p1".into(),
+                    available_space: 100,
+                },
+            )
+            .unwrap();
+        queue
+            .enqueue(
+                MessagePriority::Low,
+                "p2",
+                P2pMessage::NodeJoin {
+                    node_id: "n2".into(),
+                    peer_id: "p2".into(),
+                    available_space: 200,
+                },
+            )
+            .unwrap();
+        assert_eq!(queue.priority_len(MessagePriority::Critical), 1);
+        assert_eq!(queue.priority_len(MessagePriority::Low), 1);
+        assert_eq!(queue.priority_len(MessagePriority::High), 0);
+    }
+
+    #[test]
+    fn test_message_priority_display() {
+        assert_eq!(MessagePriority::Low.to_string(), "Low");
+        assert_eq!(MessagePriority::Critical.to_string(), "Critical");
     }
 }

@@ -2,7 +2,8 @@
 name = "vaultkeeper-storage"
 version.workspace = true
 edition.workspace = true
-description = "Storage management: seccomp/cgroups sandboxing, disk I/O, replication logic"
+license.workspace = true
+description = "Storage: seccomp/cgroups sandbox, shard store, replication, mobile guards"
 
 [dependencies]
 vaultkeeper-core = { path = "../core" }
@@ -13,13 +14,12 @@ serde_json.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
-sha2.workspace = true
 blake3.workspace = true
 chrono.workspace = true
 parking_lot.workspace = true
-uuid = { workspace = true, features = ["v4", "serde"] }
+uuid.workspace = true
 bytes.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
-tempfile = "3"
+tempfile.workspace = true

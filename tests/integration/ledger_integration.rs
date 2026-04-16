@@ -1,60 +1,55 @@
-//! Integration tests for ledger system
-
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_ledger_offline_write_online_sync() {
-        use vaultkeeper_ledger::LedgerStore;
+    fn test_reputation_success_below_one() {
+        let mut rep = vaultkeeper_ledger::ReputationManager::new();
+        // Simulate many failures to bring score below 1.0
+        for _ in 0..50 { rep.record_failure("node1"); }
+        let score = rep.get_score("node1").unwrap();
+        assert_eq!(score, rust_decimal::Decimal::ZERO); // clamped to 0
 
-        // Simulate offline: write entries
-        let store = LedgerStore::open_in_memory().unwrap();
-        store.record_entry("deposit", "acc1", "100.00", "100.00").unwrap();
-        store.record_entry("charge", "acc1", "10.00", "90.00").unwrap();
-
-        // Check unsynced
-        let unsynced = store.get_unsynced().unwrap();
-        assert_eq!(unsynced.len(), 2);
-
-        // Compute Merkle root
-        let root1 = store.compute_merkle_root().unwrap();
-
-        // Simulate sync
-        store.mark_synced(2).unwrap();
-        let unsynced = store.get_unsynced().unwrap();
-        assert_eq!(unsynced.len(), 0);
-
-        // Root should be stable
-        let root2 = store.compute_merkle_root().unwrap();
-        assert_eq!(root1, root2);
+        rep.record_success("node1"); // should boost
+        let boosted = rep.get_score("node1").unwrap();
+        assert_eq!(boosted, rust_decimal::Decimal::from_str("0.01").unwrap());
     }
 
     #[test]
-    fn test_conflict_resolution_integration() {
-        use vaultkeeper_ledger::conflict::{ConflictResolver, LedgerConflict};
-        use vaultkeeper_ledger::gossip_sync::LedgerSyncManager;
+    fn test_reputation_ban_at_16() {
+        let mut rep = vaultkeeper_ledger::ReputationManager::new();
+        for _ in 0..15 { rep.record_failure("node1"); }
+        assert!(!rep.is_banned("node1"));
+        rep.record_failure("node1");
+        assert!(rep.is_banned("node1"));
+    }
 
-        let local = serde_json::json!({
-            "id": "tx1", "seq": 1,
-            "entry_type": "deposit", "amount": "100.00",
-            "timestamp": "2024-01-01T00:00:00Z"
-        });
-        let remote = serde_json::json!({
-            "id": "tx1", "seq": 1,
-            "entry_type": "deposit", "amount": "200.00",
-            "timestamp": "2024-01-01T01:00:00Z"
-        });
+    #[test]
+    fn test_im_back_resets_fails() {
+        let mut rep = vaultkeeper_ledger::ReputationManager::new();
+        for _ in 0..10 { rep.record_failure("node1"); }
+        assert_eq!(rep.get_consecutive_fails("node1").unwrap(), 10);
+        rep.handle_im_back("node1");
+        assert_eq!(rep.get_consecutive_fails("node1").unwrap(), 0);
+        assert!(!rep.is_banned("node1")); // 10 fails reset to 0, not banned
+    }
 
-        let conflict = LedgerConflict::new(local.clone(), remote.clone());
-        assert!(conflict.resolve_by_timestamp()); // remote is newer
+    #[test]
+    fn test_escrow_3_fails_triggers_refund() {
+        let mut escrow = vaultkeeper_ledger::EscrowManager::new();
+        // Record 3 failures in 1 hour
+        escrow.record_challenge_failure("host1");
+        escrow.record_challenge_failure("host1");
+        escrow.record_challenge_failure("host1");
+        let refund = escrow.check_and_refund("host1", 1);
+        assert!(refund > rust_decimal::Decimal::ZERO);
+    }
 
-        // Test with majority
-        assert!(!conflict.resolve_by_majority(5, 1)); // local wins by majority
-        assert!(conflict.resolve_by_majority(1, 5)); // remote wins by majority
-
-        // Test with sync manager
-        let mut sync = LedgerSyncManager::new("peer1".to_string());
-        sync.update_local_state("root_local", 1);
-        sync.register_peer_state("peer2", "root_remote", 2);
-        assert!(sync.needs_sync("peer2"));
+    #[test]
+    fn test_ledger_offline_sync() {
+        let store = vaultkeeper_ledger::store::LedgerStore::open_in_memory().unwrap();
+        store.record_entry("deposit", "acc1", "100.00", "100.00").unwrap();
+        store.record_entry("charge", "acc1", "10.00", "90.00").unwrap();
+        assert_eq!(store.get_unsynced().unwrap().len(), 2);
+        store.mark_synced(2).unwrap();
+        assert_eq!(store.get_unsynced().unwrap().len(), 0);
     }
 }

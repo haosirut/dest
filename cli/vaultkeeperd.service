@@ -17,12 +17,20 @@ ProtectHome=true
 ReadWritePaths=/var/lib/vaultkeeper
 PrivateTmp=true
 
-# Sandboxing
+# Sandboxing — restrict syscalls to system-service set
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged
 CapabilityBoundingSet=
+
+# Resource limits
 MemoryMax=2G
 CPUQuota=50%
+
+# Additional hardening
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 [Install]
 WantedBy=multi-user.target

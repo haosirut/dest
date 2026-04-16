@@ -1,19 +1,54 @@
 [package]
-name = "vaultkeeper-app"
-version = "0.1.0"
-edition = "2021"
-description = "VaultKeeper Tauri v2 Desktop App"
+name = "vaultkeeper-tauri"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
+[lib]
+name = "vaultkeeper_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 vaultkeeper-core = { path = "../../core" }
+vaultkeeper-p2p = { path = "../../p2p" }
 vaultkeeper-billing = { path = "../../billing" }
+vaultkeeper-ledger = { path = "../../ledger" }
+vaultkeeper-storage = { path = "../../storage" }
+
+tauri = { workspace = true, features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri-plugin-store.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-fs.workspace = true
+tauri-plugin-notification.workspace = true
+tauri-plugin-updater.workspace = true
+tauri-plugin-shell.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+rust_decimal.workspace = true
+chrono.workspace = true
+
+chacha20poly1305.workspace = true
+argon2.workspace = true
+bip39.workspace = true
+zeroize.workspace = true
+blake3.workspace = true
+
+keyring.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+tauri = { workspace = true, features = ["native-tls"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+tauri = { workspace = true, features = ["native-tls"] }
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build.workspace = true
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

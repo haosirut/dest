@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VaultKeeper — P2P Хранилище</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    /* ── Mobile warning ── */
+    #mobile-warning {
+      display: none;
+      position: fixed; inset: 0;
+      background: #1a0000;
+      color: #ff6666;
+      z-index: 9999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px;
+    }
+    #mobile-warning.visible { display: flex; }
+    #mobile-warning h2 { font-size: 24px; margin-bottom: 12px; }
+    #mobile-warning p  { font-size: 14px; color: #cc8888; max-width: 400px; }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: #12121a;
+      border-bottom: 1px solid #1e1e2e;
+    }
+    .header h1 { font-size: 20px; color: #7c6ff7; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .node-id { font-size: 12px; color: #666; font-family: monospace; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .version { font-size: 12px; color: #555; }
+
+    /* ── Navigation ── */
+    .nav {
+      display: flex;
+      gap: 0;
+      padding: 0 24px;
+      background: #12121a;
+      border-bottom: 1px solid #1e1e2e;
+    }
+    .nav-btn {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      font-size: 14px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover { color: #bbb; }
+    .nav-btn.active { color: #7c6ff7; border-bottom-color: #7c6ff7; }
+
+    /* ── Content ── */
+    .content { padding: 24px; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+
+    /* ── Cards / grids ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .stat-card {
+      background: #16161e;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .stat-value { font-size: 24px; font-weight: 600; color: #fff; }
+    .stat-value.frozen { color: #ff5555; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #7c6ff7; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #6a5ce0; }
+    .btn-secondary { background: #2a2a3a; color: #ccc; }
+    .btn-secondary:hover:not(:disabled) { background: #3a3a4a; }
+    .btn-danger { background: #a33; color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #c44; }
+
+    /* ── Auth section ── */
+    .auth-section {
+      max-width: 560px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .auth-section h2 { margin-bottom: 16px; font-size: 22px; }
+    .auth-section p.desc { color: #888; margin-bottom: 24px; }
+    .seed-actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
+    .seed-display-box {
+      background: #16161e;
+      border: 1px solid #f0ad4e;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+      font-family: monospace;
+      font-size: 15px;
+      line-height: 2;
+      word-spacing: 8px;
+      color: #f0d07e;
+      text-align: center;
+    }
+    .seed-display-box.hidden { display: none; }
+    .recover-section { margin-top: 24px; }
+    .recover-section input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: #16161e;
+      border: 1px solid #2a2a3a;
+      color: #fff;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .warning-text { color: #f0ad4e; margin: 12px 0; font-size: 13px; }
+    .confirm-section {
+      margin-top: 24px;
+      padding: 20px;
+      background: #1a1a28;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      text-align: left;
+    }
+    .confirm-section label { font-size: 13px; color: #aaa; display: block; margin-bottom: 6px; }
+    .confirm-section input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0e0e16;
+      border: 1px solid #2a2a3a;
+      color: #fff;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    /* ── Upload section ── */
+    .upload-area {
+      border: 2px dashed #2a2a3a;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      margin-bottom: 20px;
+      transition: border-color 0.2s;
+    }
+    .upload-area:hover, .upload-area.dragover { border-color: #7c6ff7; }
+    .upload-area p { margin-bottom: 16px; color: #888; }
+    .cost-preview {
+      background: #16161e;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+      font-size: 13px;
+    }
+    .cost-preview .cost-row { display: flex; justify-content: space-between; padding: 4px 0; }
+    .cost-preview .cost-value { color: #7c6ff7; font-weight: 600; }
+    .cost-params {
+      display: flex;
+      gap: 12px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .cost-params select, .cost-params input[type="number"] {
+      background: #0e0e16;
+      border: 1px solid #2a2a3a;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .cost-params label { font-size: 12px; color: #888; }
+
+    /* ── File list ── */
+    .file-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #16161e;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+    .file-item-name { font-weight: 500; }
+    .file-item-size { font-size: 12px; color: #888; }
+    .file-item-actions { display: flex; gap: 8px; }
+
+    /* ── Balance / subscription ── */
+    .balance-section h2 { margin-bottom: 16px; }
+    .balance-display {
+      font-size: 48px;
+      font-weight: 700;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .currency { font-size: 20px; color: #888; }
+    .balance-actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 32px; }
+    .subscription-tiers {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .tier-card {
+      background: #16161e;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      padding: 20px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .tier-card:hover { border-color: #7c6ff7; }
+    .tier-card.current { border-color: #7c6ff7; box-shadow: 0 0 12px rgba(124, 111, 247, 0.15); }
+    .tier-card h3 { margin-bottom: 8px; }
+    .price { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+    .tier-card ul { list-style: none; font-size: 13px; color: #aaa; }
+    .tier-card li { padding: 4px 0; }
+    .tier-card li::before { content: "\2713 "; color: #7c6ff7; }
+    .tier-badge {
+      display: inline-block;
+      font-size: 10px;
+      background: #7c6ff7;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* ── Host section ── */
+    .host-section {
+      max-width: 600px;
+    }
+    .host-section h2 { margin-bottom: 12px; }
+    .host-status {
+      background: #16161e;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .host-status .label { font-size: 13px; color: #888; }
+    .host-status .value { font-size: 18px; font-weight: 600; margin-top: 4px; }
+    .host-status .value.eligible { color: #4caf50; }
+    .host-status .value.ineligible { color: #ff5555; }
+    .earn-info {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.6;
+    }
+
+    /* ── Misc ── */
+    .hidden { display: none !important; }
+    .error-msg { color: #ff5555; font-size: 13px; margin-top: 8px; }
+    .success-msg { color: #4caf50; font-size: 13px; margin-top: 8px; }
+    .section-gap { margin-top: 32px; }
+    h2.section-title { margin-bottom: 16px; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <!-- ═══════ MOBILE WARNING ═══════ -->
+  <div id="mobile-warning">
+    <h2>Мобильные устройства не поддерживаются</h2>
+    <p>Хранение данных (hosting) недоступно на Android и iOS. Используйте десктопное приложение для полного функционала.</p>
+  </div>
+
+  <!-- ═══════ APP ═══════ -->
+  <div id="app">
+    <!-- ── AUTH SCREEN (shown when no identity) ── -->
+    <div id="auth-screen" class="tab active">
+      <header class="header">
+        <h1>VaultKeeper</h1>
+        <span class="version">v0.1.0</span>
+      </header>
+      <div class="content">
+        <div class="auth-section">
+          <h2>Создать или восстановить идентичность</h2>
+          <p class="desc">Ваша мнемоническая фраза (12 слов) — единственный способ восстановить доступ. Запишите её на бумаге и храните в безопасном месте.</p>
+
+          <div class="seed-actions">
+            <button class="btn btn-primary" id="btn-generate">Сгенерировать новую фразу</button>
+            <button class="btn btn-secondary" id="btn-toggle-recover">Ввести существующую фразу</button>
+          </div>
+
+          <!-- Generated seed display -->
+          <div id="seed-box" class="seed-display-box hidden"></div>
+          <p id="seed-warning" class="warning-text hidden">⚠️ Запишите эти 12 слов! После подтверждения они будут скрыты.</p>
+
+          <!-- Confirm seed -->
+          <div id="confirm-box" class="confirm-section hidden">
+            <label for="confirm-word">Введите 4-е слово для подтверждения:</label>
+            <input type="text" id="confirm-word" placeholder="4-е слово..." autocomplete="off" />
+            <div style="margin-top: 12px; text-align: center;">
+              <button class="btn btn-primary" id="btn-confirm" disabled>Подтвердить и войти</button>
+            </div>
+            <div id="confirm-error" class="error-msg hidden"></div>
+          </div>
+
+          <!-- Recover from phrase -->
+          <div id="recover-box" class="recover-section hidden">
+            <h2 style="font-size:16px; margin-bottom:8px;">Восстановление из фразы</h2>
+            <input type="text" id="recover-phrase" placeholder="Введите 12 или 24 слова через пробел..." />
+            <button class="btn btn-primary" id="btn-recover" style="width:100%;">Восстановить</button>
+            <div id="recover-error" class="error-msg hidden"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MAIN SCREEN (shown after auth) ── -->
+    <div id="main-screen" class="tab">
+      <header class="header">
+        <h1>VaultKeeper</h1>
+        <div class="header-right">
+          <span class="node-id" id="header-node-id"></span>
+          <span class="version">v0.1.0</span>
+        </div>
+      </header>
+      <nav class="nav">
+        <button class="nav-btn active" data-tab="tab-dashboard">Панель</button>
+        <button class="nav-btn" data-tab="tab-upload">Загрузка</button>
+        <button class="nav-btn" data-tab="tab-files">Файлы</button>
+        <button class="nav-btn" data-tab="tab-billing">Баланс</button>
+        <button class="nav-btn" data-tab="tab-host">Узел</button>
+      </nav>
+      <main class="content">
+
+        <!-- ─── Dashboard ─── -->
+        <section id="tab-dashboard" class="tab active">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Баланс</div>
+              <div class="stat-value" id="dash-balance">—</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Подписка</div>
+              <div class="stat-value" id="dash-subscription">—</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Платформа</div>
+              <div class="stat-value" id="dash-platform">—</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Статус</div>
+              <div class="stat-value" id="dash-status">—</div>
+            </div>
+          </div>
+          <div id="dash-frozen-msg" class="error-msg hidden" style="margin-top:16px;">
+            Аккаунт заморожён. Пополните баланс для восстановления.
+          </div>
+        </section>
+
+        <!-- ─── Upload ─── -->
+        <section id="tab-upload" class="tab">
+          <h2 class="section-title">Загрузить файл</h2>
+          <div class="upload-area" id="drop-zone">
+            <p>Перетащите файлы сюда или нажмите кнопку ниже</p>
+            <input type="file" id="file-input" multiple hidden />
+            <button class="btn btn-primary" id="btn-choose-file">Выбрать файлы</button>
+          </div>
+
+          <!-- Cost preview -->
+          <div class="cost-preview hidden" id="cost-preview">
+            <div class="cost-row"><span>Размер файла:</span><span id="cp-size" class="cost-value">—</span></div>
+            <div class="cost-row"><span>Стоимость (час):</span><span id="cp-cost" class="cost-value">—</span></div>
+            <div class="cost-row"><span>Стоимость (мес ≈ 720 ч):</span><span id="cp-monthly" class="cost-value">—</span></div>
+            <div class="cost-params">
+              <label>Репликация:</label>
+              <select id="cp-replication">
+                <option value="2">2×</option>
+                <option value="3">3×</option>
+                <option value="4">4×</option>
+              </select>
+              <label>Диск:</label>
+              <select id="cp-disk">
+                <option value="hdd">HDD</option>
+                <option value="ssd">SSD</option>
+                <option value="nvme">NVMe</option>
+              </select>
+              <label>
+                <input type="checkbox" id="cp-cushion" checked /> Подушка 25%
+              </label>
+            </div>
+          </div>
+
+          <div id="upload-error" class="error-msg hidden"></div>
+          <div id="upload-success" class="success-msg hidden"></div>
+        </section>
+
+        <!-- ─── Files ─── -->
+        <section id="tab-files" class="tab">
+          <h2 class="section-title">Мои файлы</h2>
+          <div id="file-list" class="file-list">
+            <p style="color:#888; text-align:center; padding:24px;">Загруженные файлы появятся здесь.</p>
+          </div>
+        </section>
+
+        <!-- ─── Billing ─── -->
+        <section id="tab-billing" class="tab">
+          <div class="balance-section">
+            <h2>Состояние счёта</h2>
+            <div class="balance-display">
+              <span id="billing-amount">0.00</span>
+              <span class="currency"> RUB</span>
+            </div>
+            <div id="billing-frozen" class="error-msg hidden" style="text-align:center; margin-bottom:16px;">
+              Аккаунт заморожён
+            </div>
+            <div class="balance-actions">
+              <button class="btn btn-primary">Пополнить</button>
+              <button class="btn btn-secondary">Вывести</button>
+            </div>
+          </div>
+
+          <div class="section-gap">
+            <h2 class="section-title">Подписка</h2>
+            <div class="subscription-tiers">
+              <div class="tier-card" data-tier="archive" id="tier-archive">
+                <h3>Архив</h3>
+                <div class="price">0 RUB/мес</div>
+                <ul>
+                  <li>1× репликация</li>
+                  <li>HDD хранение</li>
+                  <li>10 МБ/с загрузка</li>
+                </ul>
+              </div>
+              <div class="tier-card" data-tier="standard" id="tier-standard">
+                <h3>Стандарт</h3>
+                <div class="price">199 RUB/мес</div>
+                <ul>
+                  <li>2× репликация</li>
+                  <li>SSD хранение</li>
+                  <li>50 МБ/с загрузка</li>
+                </ul>
+              </div>
+              <div class="tier-card" data-tier="premium" id="tier-premium">
+                <h3>Премиум</h3>
+                <div class="price">499 RUB/мес</div>
+                <ul>
+                  <li>3× репликация</li>
+                  <li>NVMe хранение</li>
+                  <li>Безлимит скорость</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ─── Host (Node) ─── -->
+        <section id="tab-host" class="tab">
+          <div class="host-section">
+            <h2>Участие в сети (хостинг)</h2>
+            <div class="host-status">
+              <div class="label">Доступность хостинга</div>
+              <div class="value" id="host-eligibility">Проверка...</div>
+            </div>
+            <div class="host-status">
+              <div class="label">Ваш Node ID</div>
+              <div class="value" id="host-node-id" style="font-size:13px; font-family:monospace; word-break:break-all;">—</div>
+            </div>
+            <div class="host-status">
+              <div class="label">Платформа</div>
+              <div class="value" id="host-platform">—</div>
+            </div>
+            <div class="earn-info" id="host-info">
+              Храните данные других участников и зарабатывайте. Ваша репутация зависит от надёжности и доступности.
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    //  VaultKeeper Tauri v2 — Frontend
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const { invoke } = window.__TAURI__.core;
+    const { platform } = window.__TAURI__.os;
+
+    // ── State ──
+    let currentSeed = null;    // the 12-word phrase (shown once)
+    let currentNodeId = null;  // SHA-256 hex of master key
+    let uploadedFiles = [];    // local list of uploaded file metadata
+
+    // ═══════ Platform detection ═══════
+
+    async function detectPlatform() {
+      try {
+        const os = await platform();
+        // Show mobile warning on android / ios
+        if (os === 'android' || os === 'ios') {
+          document.getElementById('mobile-warning').classList.add('visible');
+          return os;
+        }
+        return os;
+      } catch (e) {
+        console.warn('Cannot detect platform:', e);
+        return 'unknown';
+      }
+    }
+
+    // ═══════ Auth flow ═══════
+
+    document.getElementById('btn-generate').addEventListener('click', async () => {
+      try {
+        const result = await invoke('generate_seed');
+        currentSeed = result.seed;
+        currentNodeId = result.node_id;
+
+        // Show the seed words
+        const box = document.getElementById('seed-box');
+        box.textContent = result.seed;
+        box.classList.remove('hidden');
+        document.getElementById('seed-warning').classList.remove('hidden');
+
+        // Show confirm section
+        document.getElementById('confirm-box').classList.remove('hidden');
+        document.getElementById('confirm-word').value = '';
+        document.getElementById('confirm-error').classList.add('hidden');
+        document.getElementById('btn-confirm').disabled = true;
+      } catch (e) {
+        console.error('generate_seed failed:', e);
+      }
+    });
+
+    // Enable confirm button when user types
+    document.getElementById('confirm-word').addEventListener('input', () => {
+      const val = document.getElementById('confirm-word').value.trim();
+      document.getElementById('btn-confirm').disabled = val.length === 0;
+    });
+
+    document.getElementById('btn-confirm').addEventListener('click', () => {
+      if (!currentSeed) return;
+      const words = currentSeed.split(/\s+/);
+      const fourthWord = words[3]; // 0-indexed: 4th word
+      const input = document.getElementById('confirm-word').value.trim().toLowerCase();
+
+      if (input === fourthWord.toLowerCase()) {
+        // Confirmed — switch to main screen
+        switchToMain();
+      } else {
+        const errEl = document.getElementById('confirm-error');
+        errEl.textContent = 'Неверное слово. Попробуйте снова.';
+        errEl.classList.remove('hidden');
+      }
+    });
+
+    // ── Recover toggle ──
+    document.getElementById('btn-toggle-recover').addEventListener('click', () => {
+      document.getElementById('recover-box').classList.toggle('hidden');
+    });
+
+    document.getElementById('btn-recover').addEventListener('click', async () => {
+      const phrase = document.getElementById('recover-phrase').value.trim();
+      const errEl = document.getElementById('recover-error');
+      errEl.classList.add('hidden');
+
+      if (!phrase || phrase.split(/\s+/).length < 12) {
+        errEl.textContent = 'Введите не менее 12 слов.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const result = await invoke('recover_from_seed', { phrase });
+        currentNodeId = result.node_id;
+        currentSeed = result.seed;
+        switchToMain();
+      } catch (e) {
+        errEl.textContent = 'Неверная мнемоническая фраза: ' + e;
+        errEl.classList.remove('hidden');
+      }
+    });
+
+    // ═══════ Screen switching ═══════
+
+    function switchToMain() {
+      document.getElementById('auth-screen').classList.remove('active');
+      document.getElementById('main-screen').classList.add('active');
+      refreshAll();
+    }
+
+    // ═══════ Tab navigation (main screen) ═══════
+
+    document.querySelectorAll('#main-screen .nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#main-screen .nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#main-screen .tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    // ═══════ Dashboard refresh ═══════
+
+    async function refreshAll() {
+      try {
+        const [balanceInfo, nodeInfo] = await Promise.all([
+          invoke('get_balance'),
+          invoke('get_node_info'),
+        ]);
+
+        // Dashboard
+        document.getElementById('dash-balance').textContent = balanceInfo.balance + ' RUB';
+        document.getElementById('dash-balance').className = 'stat-value' + (balanceInfo.frozen ? ' frozen' : '');
+        document.getElementById('dash-subscription').textContent = balanceInfo.subscription;
+        document.getElementById('dash-platform').textContent = nodeInfo.platform;
+        document.getElementById('dash-status').textContent = nodeInfo.online ? 'Онлайн' : 'Оффлайн';
+        document.getElementById('dash-frozen-msg').classList.toggle('hidden', !balanceInfo.frozen);
+
+        // Header
+        document.getElementById('header-node-id').textContent = nodeInfo.peer_id;
+
+        // Billing tab
+        document.getElementById('billing-amount').textContent = balanceInfo.balance;
+        document.getElementById('billing-frozen').classList.toggle('hidden', !balanceInfo.frozen);
+
+        // Highlight current tier
+        document.querySelectorAll('.tier-card').forEach(card => card.classList.remove('current'));
+        const tierEl = document.getElementById('tier-' + balanceInfo.subscription);
+        if (tierEl) tierEl.classList.add('current');
+
+        // Host tab
+        document.getElementById('host-node-id').textContent = nodeInfo.peer_id;
+        document.getElementById('host-platform').textContent = nodeInfo.platform;
+
+        const hostEl = document.getElementById('host-eligibility');
+        if (nodeInfo.hosting_available) {
+          hostEl.textContent = 'Доступно';
+          hostEl.className = 'value eligible';
+          document.getElementById('host-info').textContent =
+            'Храните данные других участников и зарабатывайте. Ваша репутация зависит от надёжности и доступности.';
+        } else {
+          hostEl.textContent = 'Недоступно на этой платформе';
+          hostEl.className = 'value ineligible';
+          document.getElementById('host-info').textContent =
+            'Хостинг отключён на мобильных устройствах. Используйте десктопную версию.';
+        }
+
+      } catch (e) {
+        console.error('refreshAll failed:', e);
+      }
+    }
+
+    // ═══════ File upload ═══════
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    document.getElementById('btn-choose-file').addEventListener('click', () => fileInput.click());
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', () => {
+      handleFiles(fileInput.files);
+      fileInput.value = '';
+    });
+
+    function handleFiles(files) {
+      if (!files.length) return;
+      const file = files[0];
+      showCostPreview(file.size);
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    async function showCostPreview(fileSizeBytes) {
+      const preview = document.getElementById('cost-preview');
+      preview.classList.remove('hidden');
+
+      document.getElementById('cp-size').textContent = formatBytes(fileSizeBytes);
+
+      const replication = parseInt(document.getElementById('cp-replication').value);
+      const diskType = document.getElementById('cp-disk').value;
+      const cushion = document.getElementById('cp-cushion').checked;
+
+      try {
+        const costStr = await invoke('estimate_cost', {
+          fileSizeBytes,
+          replication,
+          diskType,
+          cushion,
+        });
+        const hourlyCost = parseFloat(costStr);
+        document.getElementById('cp-cost').textContent = hourlyCost.toFixed(8) + ' RUB';
+        document.getElementById('cp-monthly').textContent = (hourlyCost * 720).toFixed(6) + ' RUB';
+      } catch (e) {
+        document.getElementById('cp-cost').textContent = 'Ошибка: ' + e;
+        document.getElementById('cp-monthly').textContent = '—';
+      }
+    }
+
+    // Re-calculate when params change
+    ['cp-replication', 'cp-disk', 'cp-cushion'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        // Re-use the last file size (read from displayed text or skip)
+        const sizeText = document.getElementById('cp-size').textContent;
+        if (sizeText === '—') return;
+        // Approximate: parse bytes back (or store as state)
+        // For simplicity, we'd need to track the file size in a variable.
+        // Let's store it:
+        if (lastPreviewSize > 0) showCostPreview(lastPreviewSize);
+      });
+    });
+
+    let lastPreviewSize = 0;
+    const originalShowCostPreview = showCostPreview;
+    showCostPreview = function(size) {
+      lastPreviewSize = size;
+      originalShowCostPreview(size);
+    };
+
+    // ═══════ Subscription tier selection ═══════
+
+    document.querySelectorAll('.tier-card').forEach(card => {
+      card.addEventListener('click', async () => {
+        const tier = card.dataset.tier;
+        try {
+          await invoke('subscribe', { tier });
+          await refreshAll();
+        } catch (e) {
+          console.error('subscribe failed:', e);
+        }
+      });
+    });
+
+    // ═══════ Init ═══════
+
+    detectPlatform();
+  </script>
+</body>
+</html>

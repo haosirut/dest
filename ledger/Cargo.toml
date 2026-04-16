@@ -2,10 +2,12 @@
 name = "vaultkeeper-ledger"
 version.workspace = true
 edition.workspace = true
-description = "Ledger: SQLite schema, gossip-sync protocol, Merkle root generation, conflict resolution"
+license.workspace = true
+description = "Ledger: SQLite, gossip-sync, Merkle roots, reputation, escrow"
 
 [dependencies]
 vaultkeeper-core = { path = "../core" }
+vaultkeeper-billing = { path = "../billing" }
 rusqlite.workspace = true
 tokio.workspace = true
 async-trait.workspace = true
@@ -15,10 +17,13 @@ blake3.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
-chrono = { workspace = true, features = ["serde"] }
-uuid = { workspace = true, features = ["v4", "serde"] }
+chrono.workspace = true
+uuid.workspace = true
 hex.workspace = true
+rust_decimal.workspace = true
+rust_decimal_macros.workspace = true
+parking_lot.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
-tempfile = "3"
+tempfile.workspace = true

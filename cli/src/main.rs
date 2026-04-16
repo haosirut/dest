@@ -10,7 +10,7 @@ mod config;
 
 use anyhow::Result;
 use clap::Parser;
-use commands::{CliCommand, handle_command};
+use commands::CliCommand;
 use tracing::{info, Level};
 
 #[derive(Parser, Debug)]
@@ -18,12 +18,8 @@ use tracing::{info, Level};
 struct Cli {
     #[command(subcommand)]
     command: CliCommand,
-
-    /// Log level (trace, debug, info, warn, error)
     #[arg(long, global = true, default_value = "info")]
     log_level: String,
-
-    /// Configuration file path
     #[arg(long, global = true)]
     config: Option<String>,
 }
@@ -31,8 +27,6 @@ struct Cli {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-
-    // Initialize logging
     let level = match cli.log_level.to_lowercase().as_str() {
         "trace" => Level::TRACE,
         "debug" => Level::DEBUG,
@@ -44,10 +38,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(level)
         .with_target(false)
-        .with_thread_ids(false)
         .init();
-
     info!("VaultKeeper Daemon v{}", env!("CARGO_PKG_VERSION"));
-
-    handle_command(cli.command, cli.config).await
+    commands::handle_command(cli.command, cli.config).await
 }

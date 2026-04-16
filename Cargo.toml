@@ -7,78 +7,89 @@ members = [
     "storage",
     "ledger",
     "cli",
-]
-exclude = [
     "tauri/src-tauri",
-    "tests",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["VaultKeeper Team"]
-license = "AGPL-3.0-or-later"
+license = "MIT"
+repository = "https://github.com/haosirut/dest"
 rust-version = "1.75"
-repository = "https://github.com/haosirut/vaultkeeper-p2p"
 
 [workspace.dependencies]
-# Async runtime
+# ─── Crypto ───
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+bip39 = { version = "2.0", features = ["rand"] }
+zeroize = { version = "1.7", features = ["derive"] }
+ring = "0.17"
+sha2 = "0.10"
+blake3 = "1"
+rand = "0.8"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+rand_chacha = "0.3"
+hmac = "0.12"
+
+# ─── P2P / NAT traversal ───
+libp2p = { version = "0.54", features = [
+    "tcp", "noise", "yamux", "gossipsub", "kad",
+    "mdns", "request-response", "ed25519",
+    "relay", "autonat", "dcutr", "rendezvous",
+] }
+
+# ─── Async ───
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 futures = "0.3"
 
-# Crypto
-x25519-dalek = { version = "2", features = ["static_secrets"] }
-ed25519-dalek = { version = "2", features = ["rand_core"] }
-chacha20poly1305 = "0.10"
-argon2 = "0.5"
-rand = "0.8"
-rand_chacha = "0.3"
-sha2 = "0.10"
-hmac = "0.12"
-blake3 = "1"
+# ─── Serialization ───
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+bytes = "1.5"
 
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-bincode = "1"
-rmp-serde = "1"
-bytes = "1"
+# ─── Database ───
+rusqlite = { version = "0.31", features = ["bundled"] }
 
-# Error handling
-thiserror = "1"
-anyhow = "1"
+# ─── Error handling ───
+anyhow = "1.0"
+thiserror = "1.0"
 
-# Logging
+# ─── Logging ───
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Database
-rusqlite = { version = "0.31", features = ["bundled"] }
-
-# P2P
-libp2p = { version = "0.53", features = ["full"] }
-
-# Erasure coding
-reed-solomon-erasure = "6"
-
-# BIP39
-bip39 = { version = "2", features = ["rand"] }
-
-# Decimal math
-rust_decimal = { version = "1", features = ["serde"] }
-rust_decimal_macros = "1"
-
-# CLI
-clap = { version = "4", features = ["derive"] }
-
-# Time
-chrono = { version = "0.4", features = ["serde"] }
-
-# Misc
+# ─── Utilities ───
 hex = "0.4"
 base64 = "0.22"
-uuid = { version = "1", features = ["v4", "serde"] }
-zeroize = { version = "1", features = ["derive"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
 parking_lot = "0.12"
-dashmap = "5"
+dashmap = "5.5"
+
+# ─── Billing (exact decimal math) ───
+rust_decimal = { version = "1.33", features = ["serde"] }
+rust_decimal_macros = "1.33"
+
+# ─── Secure storage (OS-native keyring) ───
+keyring = "2.0"
+
+# ─── Erasure coding ───
+reed-solomon-erasure = "6"
+
+# ─── CLI ───
+clap = { version = "4", features = ["derive"] }
+
+# ─── Tauri v2 ───
+tauri = { version = "2.0", features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri-build = { version = "2.0" }
+tauri-plugin-store = "2.0"
+tauri-plugin-dialog = "2.0"
+tauri-plugin-fs = "2.0"
+tauri-plugin-notification = "2.0"
+tauri-plugin-updater = "2.0"
+tauri-plugin-shell = "2.0"
+
+tempfile = "3"

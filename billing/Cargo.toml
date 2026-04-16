@@ -2,11 +2,11 @@
 name = "vaultkeeper-billing"
 version.workspace = true
 edition.workspace = true
-description = "Hourly billing calculations, 90/10 revenue split, freeze/export timers, Decimal math"
+license.workspace = true
+description = "Billing: hourly Decimal math, 90/10 split, freeze/export, subscriptions"
 
 [dependencies]
 vaultkeeper-core = { path = "../core" }
-uuid.workspace = true
 rust_decimal.workspace = true
 rust_decimal_macros.workspace = true
 serde.workspace = true
@@ -15,8 +15,7 @@ chrono.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
-tokio.workspace = true
-async-trait.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["full"] }
+tokio.workspace = true

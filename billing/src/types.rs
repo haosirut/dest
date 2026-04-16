@@ -1,102 +1,79 @@
-//! Billing types and data structures.
-
-use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-/// Unique billing account identifier
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct AccountId(pub String);
+#[cfg(test)]
+use rust_decimal_macros::dec;
 
-impl AccountId {
-    pub fn new() -> Self {
-        Self(Uuid::new_v4().to_string())
-    }
-}
+use crate::rates::split_revenue;
 
-impl Default for AccountId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/// Unique account identifier.
+pub type AccountId = uuid::Uuid;
 
-/// A single billing entry (one hour of usage)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BillingEntry {
-    pub id: String,
-    pub account_id: AccountId,
-    pub timestamp: DateTime<Utc>,
-    pub hours: u32,
-    pub data_volume_tb: Decimal,
-    pub hourly_rate: Decimal,
-    pub total_cost: Decimal,
-    pub platform_fee: Decimal,
-    pub host_fee: Decimal,
-    pub disk_type: u32,
-    pub replication_factor: u32,
-    pub cushion_enabled: bool,
-}
-
-impl BillingEntry {
-    pub fn new(
-        account_id: AccountId,
-        timestamp: DateTime<Utc>,
-        hours: u32,
-        data_volume_tb: Decimal,
-        hourly_rate: Decimal,
-        disk_type: u32,
-        replication_factor: u32,
-        cushion_enabled: bool,
-    ) -> Self {
-        let total_cost = hourly_rate * data_volume_tb * Decimal::from(hours);
-        let platform_fee = total_cost * crate::rates::PLATFORM_SHARE;
-        let host_fee = total_cost * crate::rates::HOST_SHARE;
-
-        Self {
-            id: Uuid::new_v4().to_string(),
-            account_id,
-            timestamp,
-            hours,
-            data_volume_tb,
-            hourly_rate,
-            total_cost,
-            platform_fee,
-            host_fee,
-            disk_type,
-            replication_factor,
-            cushion_enabled,
-        }
-    }
-
-    /// Verify that platform_fee + host_fee == total_cost (no rounding loss)
-    pub fn verify_split(&self) -> bool {
-        self.platform_fee + self.host_fee == self.total_cost
-    }
-}
-
-/// Transaction types
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Types of financial transactions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionType {
     Deposit,
-    Withdrawal,
-    BillingCharge,
+    Charge,
     Refund,
-    PlatformFee,
-    HostPayout,
+    Subscription,
+    FreezePenalty,
 }
 
-/// A financial transaction
+/// A single financial transaction record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
-    pub id: String,
+    pub id: uuid::Uuid,
     pub account_id: AccountId,
     pub tx_type: TransactionType,
     pub amount: Decimal,
-    pub balance_after: Decimal,
-    pub timestamp: DateTime<Utc>,
     pub description: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+impl Transaction {
+    pub fn new(account_id: AccountId, tx_type: TransactionType, amount: Decimal, description: String) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            account_id,
+            tx_type,
+            amount,
+            description,
+            timestamp: chrono::Utc::now(),
+        }
+    }
+}
+
+/// A billing entry representing a charge with platform/host split.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BillingEntry {
+    pub id: uuid::Uuid,
+    pub account_id: AccountId,
+    pub total_amount: Decimal,
+    pub platform_fee: Decimal,
+    pub host_fee: Decimal,
+    pub description: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+impl BillingEntry {
+    /// Creates a new billing entry, computing the platform/host fee split.
+    pub fn new(account_id: AccountId, total_amount: Decimal, description: String) -> Self {
+        let (platform_fee, host_fee) = split_revenue(total_amount);
+        Self {
+            id: uuid::Uuid::new_v4(),
+            account_id,
+            total_amount,
+            platform_fee,
+            host_fee,
+            description,
+            timestamp: chrono::Utc::now(),
+        }
+    }
+
+    /// Verifies that platform_fee + host_fee equals total_amount.
+    pub fn verify_split(&self) -> bool {
+        self.platform_fee + self.host_fee == self.total_amount
+    }
 }
 
 #[cfg(test)]
@@ -104,42 +81,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_billing_entry_split_no_loss() {
-        let entry = BillingEntry::new(
-            AccountId::new(),
-            Utc::now(),
-            1,
-            dec!(1.0),
-            dec!(0.30),
-            1,
-            2,
-            false,
-        );
+    fn test_billing_entry_split_round() {
+        let entry = BillingEntry::new(AccountId::nil(), dec!(100.0), "test".into());
+        assert_eq!(entry.platform_fee, dec!(10.0));
+        assert_eq!(entry.host_fee, dec!(90.0));
         assert!(entry.verify_split());
-        assert_eq!(entry.platform_fee + entry.host_fee, entry.total_cost);
     }
 
     #[test]
-    fn test_billing_entry_calculation() {
-        let entry = BillingEntry::new(
-            AccountId::new(),
-            Utc::now(),
-            1,
-            dec!(1.0),
-            dec!(0.60),
-            2,
-            2,
-            false,
+    fn test_billing_entry_split_fraction() {
+        let entry = BillingEntry::new(AccountId::nil(), dec!(0.33), "fraction test".into());
+        assert!(entry.verify_split());
+        assert_eq!(entry.platform_fee + entry.host_fee, dec!(0.33));
+    }
+
+    #[test]
+    fn test_billing_entry_verify_split_always_true() {
+        for val in [dec!(1.0), dec!(0.01), dec!(999999.999), dec!(0.001)] {
+            let entry = BillingEntry::new(AccountId::nil(), val, "verify".into());
+            assert!(entry.verify_split(), "split must be exact for {}", val);
+        }
+    }
+
+    #[test]
+    fn test_transaction_creation() {
+        let tx = Transaction::new(
+            AccountId::nil(),
+            TransactionType::Deposit,
+            dec!(50.0),
+            "top-up".into(),
         );
-        assert_eq!(entry.total_cost, dec!(0.60));
-        assert_eq!(entry.platform_fee, dec!(0.06));
-        assert_eq!(entry.host_fee, dec!(0.54));
-    }
-
-    #[test]
-    fn test_account_id_unique() {
-        let id1 = AccountId::new();
-        let id2 = AccountId::new();
-        assert_ne!(id1, id2);
+        assert_eq!(tx.tx_type, TransactionType::Deposit);
+        assert_eq!(tx.amount, dec!(50.0));
     }
 }

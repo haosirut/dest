@@ -2,7 +2,8 @@
 name = "vaultkeeper-cli"
 version.workspace = true
 edition.workspace = true
-description = "Headless CLI daemon for VaultKeeper P2P storage node"
+license.workspace = true
+description = "Headless CLI daemon for VaultKeeper P2P node"
 
 [[bin]]
 name = "vaultkeeperd"
@@ -14,6 +15,7 @@ vaultkeeper-p2p = { path = "../p2p" }
 vaultkeeper-billing = { path = "../billing" }
 vaultkeeper-storage = { path = "../storage" }
 vaultkeeper-ledger = { path = "../ledger" }
+libp2p.workspace = true
 tokio.workspace = true
 clap.workspace = true
 serde.workspace = true
@@ -25,7 +27,7 @@ chrono.workspace = true
 hex.workspace = true
 blake3.workspace = true
 rust_decimal.workspace = true
-uuid = { workspace = true, features = ["v4", "serde"] }
+uuid.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["full"] }
+tempfile.workspace = true

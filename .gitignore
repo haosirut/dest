@@ -8,7 +8,6 @@ Cargo.lock
 .vscode/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
@@ -16,30 +15,19 @@ Thumbs.db
 
 # Tauri
 tauri/src-tauri/target/
-tauri/src-tauri/WixTools/
 tauri/src-tauri/gen/
+tauri/src-tauri/WixTools/
+*.dmg *.msi *.deb *.rpm *.app *.apk
 
-# Build artifacts
-*.d
-*.rlib
-*.dll
-*.dylib
-*.so
-*.exe
+# Local state
+*.bin *.log
+.DS_Store
 
-# Environment
-.env
-.env.local
+# Secure storage (NEVER commit)
+*.key *.secret seed_backup.*
+vaultkeeper_store.bin
 
-# Database
-*.db
-*.db-shm
-*.db-wal
-
-# Logs
-*.log
-
-# Reports (generated locally)
+# Build reports
 build_report.txt
 cross_compile_report.txt
 security_audit_report.txt

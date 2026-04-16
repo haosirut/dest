@@ -5,11 +5,12 @@ use serde::{Deserialize, Serialize};
 /// Default listen port for P2P
 pub const DEFAULT_LISTEN_PORT: u16 = 9444;
 
-/// Bootstrap nodes (3 hardcoded for initial discovery)
+/// Bootstrap nodes — public libp2p bootstrap servers for initial peer discovery.
+/// Replace with your own VPS-hosted nodes for production.
 pub const DEFAULT_BOOTSTRAP_NODES: &[&str] = &[
-    "/dns4/bootstrap1.vaultkeeper.net/tcp/9444/p2p/QmBootstrap1Placeholder0000000000000000000000000000000",
-    "/dns4/bootstrap2.vaultkeeper.net/tcp/9444/p2p/QmBootstrap2Placeholder0000000000000000000000000000000",
-    "/dns4/bootstrap3.vaultkeeper.net/tcp/9444/p2p/QmBootstrap3Placeholder0000000000000000000000000000000",
+    "/dns4/bootstrap.libp2p.io/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+    "/dns4/bootstrap.libp2p.io/tcp/443/wss/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbzCUcVvMavz",
+    "/dns4/bootstrap.libp2p.io/tcp/443/wss/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsHf6hnvAakf9B7JqMN",
 ];
 
 /// Default heartbeat interval in seconds (15 minutes)
@@ -71,7 +72,7 @@ mod tests {
     fn test_default_config_bootstrap_nodes() {
         let config = P2pConfig::default();
         assert_eq!(config.bootstrap_nodes.len(), 3);
-        assert!(config.bootstrap_nodes[0].contains("/dns4/bootstrap1.vaultkeeper.net"));
+        assert!(config.bootstrap_nodes[0].contains("/dns4/bootstrap.libp2p.io"));
     }
 
     #[test]

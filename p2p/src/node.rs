@@ -329,9 +329,6 @@ impl P2PNode {
     }
 }
 
-/// Backward-compatible alias for the CLI and Tauri consumers.
-pub type P2pNode = P2PNode;
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------

@@ -1,0 +1,52 @@
+{
+  "$schema": "agent_contract_host_ru",
+  "version": "1.0",
+  "template": "54-ФЗ кассовый чек для агентских платежей",
+
+  "receipt_template": {
+    "agent_info": {
+      "inn": "ИНН Платформы",
+      "name": "VaultKeeper Platform",
+      "payment_address": "https://github.com/haosirut/dest"
+    },
+    "principal_info": {
+      "inn": "ИНН Хранителя",
+      "name": "Хранитель (ФИО/ИП)",
+      "payment_address": "peer_id хранителя"
+    },
+    "agent_tag": {
+      "agent_type": "AGENT",
+      "agent_operation": "PAYMENT",
+      "phone_agent": "телефон Платформы",
+      "phone_principal": "телефон Хранителя",
+      "transfer_operator_phone": "",
+      "transfer_operator_name": "",
+      "transfer_operator_address": "",
+      "transfer_operator_inn": ""
+    },
+
+    "payment_details": {
+      "total_amount": "Сумма платежа (в копейках)",
+      "agent_commission": "10%",
+      "principal_amount": "90%",
+      "tax_system_agent": "USN_INCOME",
+      "tax_system_principal": "USN_INCOME"
+    },
+
+    "items": [
+      {
+        "name": "Хранение данных P2P (агентское вознаграждение)",
+        "price": "комиссия Платформы",
+        "quantity": 1,
+        "payment_type": "FULL_PAYMENT",
+        "payment_subject": "PAYMENT_AGENT_COMMISSION",
+        "vat_type": "VAT_NO"
+      }
+    ],
+
+    "customer_info": {
+      "email": "email Хранителя (опционально)",
+      "phone": "телефон Хранителя"
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "$schema": "agent_report_template",
+  "version": "1.0",
+  "description": "Шаблон ежемесячного агентского отчёта VaultKeeper (54-ФЗ, ст. 1005 ГК РФ)",
+
+  "report_template": {
+    "report_id": "UUID отчёта",
+    "period": {
+      "year": 2024,
+      "month": 1,
+      "from": "2024-01-01T00:00:00Z",
+      "to": "2024-01-31T23:59:59Z"
+    },
+
+    "agent": {
+      "name": "VaultKeeper Platform",
+      "inn": "ИНН Платформы",
+      "ogrn": "ОГРН Платформы"
+    },
+
+    "principal": {
+      "peer_id": "идентификатор хранителя",
+      "name": "ФИО / Наименование ИП",
+      "inn": "ИНН Хранителя",
+      "payment_details": "реквизиты для выплаты"
+    },
+
+    "storage_summary": {
+      "total_chunks_stored": 0,
+      "total_bytes_stored": 0,
+      "total_tb_hours": "0.000000",
+      "average_uptime_pct": 0.0,
+      "successful_challenges": 0,
+      "failed_challenges": 0
+    },
+
+    "billing": {
+      "disk_type_breakdown": {
+        "hdd": {
+          "tb_hours": "0.000000",
+          "rate_per_tb_hour": "0.24",
+          "gross": "0.00"
+        },
+        "ssd": {
+          "tb_hours": "0.000000",
+          "rate_per_tb_hour": "0.30",
+          "gross": "0.00"
+        },
+        "nvme": {
+          "tb_hours": "0.000000",
+          "rate_per_tb_hour": "0.45",
+          "gross": "0.00"
+        }
+      },
+      "total_gross": "0.00",
+      "platform_commission_10pct": "0.00",
+      "host_payout_90pct": "0.00"
+    },
+
+    "payouts": [
+      {
+        "date": "YYYY-MM-DD",
+        "amount": "0.00",
+        "status": "PAID | PENDING"
+      }
+    ],
+
+    "reputation": {
+      "score_start": "5.000",
+      "score_end": "5.000",
+      "changes": []
+    },
+
+    "legal_notes": [
+      "Данный отчёт составлен в соответствии с требованиями ст. 1005 ГК РФ (агентский договор).",
+      "Платформа выступает агентом Хранителя (принципала).",
+      "Налог с вознаграждения Хранителя (90%) уплачивается Хранителем самостоятельно (НПД 4-6% или налог ИП).",
+      "Налог с комиссии Платформы (10%) уплачивается Платформой самостоятельно.",
+      "При применении онлайн-кассы каждый платёж формирует чек с agent_tag по 54-ФЗ."
+    ],
+
+    "signatures": {
+      "agent_signature": "",
+      "principal_signature": ""
+    }
+  }
+}

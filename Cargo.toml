@@ -70,11 +70,11 @@ parking_lot = "0.12"
 dashmap = "5.5"
 
 # ─── Billing (exact decimal math) ───
-rust_decimal = { version = "1.33", features = ["serde"] }
-rust_decimal_macros = "1.33"
+rust_decimal = { version = "1.41", features = ["serde"] }
+rust_decimal_macros = "1.41"
 
 # ─── Secure storage (OS-native keyring) ───
-keyring = "2.0"
+keyring = "2.3"
 
 # ─── Erasure coding ───
 reed-solomon-erasure = "6"

@@ -5,6 +5,7 @@
   "identifier": "com.vaultkeeper.p2p",
   "build": {
     "beforeDevCommand": "",
+    "beforeBuildCommand": "",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -20,14 +21,25 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "msi", "deb", "rpm", "apk"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"],
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "resources": [],
     "externalBin": [],
     "copyright": "© 2024 VaultKeeper P2P",
     "category": "Utility",
-    "shortDescription": "Децентрализованное хранилище с шифрованием на клиенте",
-    "longDescription": "VaultKeeper — P2P-сеть для безопасного хранения данных. Шифрование на устройстве, оплата по предоплате, никаких центральных серверов."
+    "shortDescription": "P2P хранилище с шифрованием",
+    "longDescription": "Децентрализованное хранение данных с предоплатой",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "wix": { "language": ["ru-RU"] }
+    }
   },
   "plugins": {
     "store": { "path": "vaultkeeper_store.bin" },

@@ -15,4 +15,4 @@ pub mod node;
 pub mod transport;
 
 pub use config::P2pConfig;
-pub use node::{DiskType, FileMetadata, P2PNode, P2pNode, UploadParams};
+pub use node::{DiskType, FileMetadata, P2PNode, UploadParams};

@@ -17,14 +17,24 @@ Thumbs.db
 tauri/src-tauri/target/
 tauri/src-tauri/gen/
 tauri/src-tauri/WixTools/
-*.dmg *.msi *.deb *.rpm *.app *.apk
+*.dmg
+*.msi
+*.deb
+*.rpm
+*.app
+*.apk
+*.AppImage
+*.nsis.zip
 
 # Local state
-*.bin *.log
-.DS_Store
+*.bin
+*.log
 
 # Secure storage (NEVER commit)
-*.key *.secret seed_backup.*
+*.key
+*.key.pub
+*.secret
+seed_backup.*
 vaultkeeper_store.bin
 
 # Build reports
@@ -32,3 +42,7 @@ build_report.txt
 cross_compile_report.txt
 security_audit_report.txt
 docs_report.txt
+
+# Environment
+.env
+.env.*

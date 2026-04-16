@@ -25,6 +25,8 @@ pub struct VaultKeeperBehaviour {
     pub relay_enabled: bool,
     /// DCUtR (direct connection upgrade through relay) enabled
     pub dcutr_enabled: bool,
+    /// Rendezvous protocol enabled (peer registration / discovery)
+    pub rendezvous_enabled: bool,
     /// mDNS local discovery enabled
     pub mdns_enabled: bool,
 }
@@ -39,6 +41,7 @@ impl VaultKeeperBehaviour {
             nat_traversal_enabled: false,
             relay_enabled: false,
             dcutr_enabled: false,
+            rendezvous_enabled: false,
             mdns_enabled: false,
         }
     }
@@ -49,6 +52,7 @@ impl VaultKeeperBehaviour {
         behaviour.nat_traversal_enabled = true;
         behaviour.relay_enabled = true;
         behaviour.dcutr_enabled = true;
+        behaviour.rendezvous_enabled = true;
         behaviour
     }
 

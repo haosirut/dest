@@ -73,6 +73,10 @@ impl Default for AppState {
 }
 
 // ─── Secure key storage via OS-native keyring ──────────────────────────────
+// Seed is NEVER saved to SQLite, JSON, or files. Only through OS keyring:
+//   macOS  → Security Framework (Keychain)
+//   Windows → DPAPI (Credential Manager)
+//   Linux  → libsecret / Secret Service API
 
 fn store_seed_securely(seed: &str, node_id: &str) -> Result<(), String> {
     let entry =
@@ -101,14 +105,9 @@ fn load_seed_securely(node_id: &str) -> Result<Option<String>, String> {
 /// persist the seed to the OS keyring.
 #[tauri::command]
 async fn generate_seed(state: tauri::State<'_, AppState>) -> Result<SeedResult, String> {
-    // vaultkeeper_core::BIP39Seed::generate(usize) -> anyhow::Result<BIP39Seed>
     let seed = vaultkeeper_core::BIP39Seed::generate(12).map_err(|e| e.to_string())?;
-
-    // vaultkeeper_core::VaultKey::from_seed(&str, &str) -> anyhow::Result<VaultKey>
     let key =
         vaultkeeper_core::VaultKey::from_seed(&seed.phrase, "").map_err(|e| e.to_string())?;
-
-    // vaultkeeper_core::VaultKey::public_id(&self) -> String
     let node_id = key.public_id();
 
     store_seed_securely(&seed.phrase, &node_id)?;
@@ -129,7 +128,6 @@ async fn recover_from_seed(
     phrase: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<SeedResult, String> {
-    // vaultkeeper_core::BIP39Seed::from_phrase(&str) -> anyhow::Result<BIP39Seed>
     let seed =
         vaultkeeper_core::BIP39Seed::from_phrase(&phrase).map_err(|e| e.to_string())?;
 
@@ -152,12 +150,9 @@ async fn recover_from_seed(
 /// Return current balance, frozen status, and subscription tier.
 #[tauri::command]
 async fn get_balance() -> Result<BalanceInfo, String> {
-    // vaultkeeper_billing::BillingEngine::new() -> BillingEngine
     let billing = vaultkeeper_billing::BillingEngine::new();
-
     let frozen = billing.is_frozen();
 
-    // vaultkeeper_billing::BillingEngine::get_subscription(&self) -> SubscriptionTier
     let sub = match billing.get_subscription() {
         vaultkeeper_billing::SubscriptionTier::Archive => "archive",
         vaultkeeper_billing::SubscriptionTier::Standard => "standard",
@@ -165,7 +160,6 @@ async fn get_balance() -> Result<BalanceInfo, String> {
     };
 
     Ok(BalanceInfo {
-        // vaultkeeper_billing::BillingEngine::get_current_balance(&self) -> Decimal
         balance: billing.get_current_balance().to_string(),
         frozen,
         subscription: sub.to_string(),
@@ -176,11 +170,7 @@ async fn get_balance() -> Result<BalanceInfo, String> {
 #[tauri::command]
 async fn get_node_info(state: tauri::State<'_, AppState>) -> Result<NodeInfo, String> {
     let inner = state.inner.lock().await;
-
-    // vaultkeeper_storage::platform_type() -> &'static str
     let platform = vaultkeeper_storage::platform_type().to_string();
-
-    // vaultkeeper_storage::is_hosting_available() -> bool
     let hosting_available = vaultkeeper_storage::is_hosting_available();
 
     Ok(NodeInfo {
@@ -194,18 +184,14 @@ async fn get_node_info(state: tauri::State<'_, AppState>) -> Result<NodeInfo, St
 /// Look up a node's reputation score, consecutive fails, and status.
 #[tauri::command]
 async fn get_reputation(node_id: String) -> Result<ReputationStatus, String> {
-    // vaultkeeper_ledger::ReputationManager::new() -> ReputationManager
     let rep = vaultkeeper_ledger::ReputationManager::new();
 
-    // vaultkeeper_ledger::ReputationManager::get_score(&self, &str) -> Option<Decimal>
     let score = rep
         .get_score(&node_id)
         .unwrap_or(rust_decimal::Decimal::from(5));
 
-    // vaultkeeper_ledger::ReputationManager::get_consecutive_fails(&self, &str) -> Option<u32>
     let fails = rep.get_consecutive_fails(&node_id).unwrap_or(0);
 
-    // vaultkeeper_ledger::ReputationManager::get_status(&self, &str) -> NodeStatus
     let status = match rep.get_status(&node_id) {
         vaultkeeper_ledger::NodeStatus::Active => "active",
         vaultkeeper_ledger::NodeStatus::Warning => "warning",
@@ -220,9 +206,6 @@ async fn get_reputation(node_id: String) -> Result<ReputationStatus, String> {
 }
 
 /// Estimate hourly storage cost in RUB for a given file size and parameters.
-///
-/// `replication` must be 2, 3, or 4.
-/// `disk_type` must be "hdd", "ssd", or "nvme".
 #[tauri::command]
 async fn estimate_cost(
     file_size_bytes: u64,
@@ -232,9 +215,6 @@ async fn estimate_cost(
 ) -> Result<String, String> {
     let billing = vaultkeeper_billing::BillingEngine::new();
 
-    // vaultkeeper_billing::BillingEngine::estimate_upload_cost(
-    //     &self, u64, u8, &str, bool
-    // ) -> Result<Decimal, BillingError>
     let cost = billing
         .estimate_upload_cost(file_size_bytes, replication, &disk_type, cushion)
         .map_err(|e| e.to_string())?;
@@ -245,8 +225,6 @@ async fn estimate_cost(
 /// Change the subscription tier (archive / standard / premium).
 #[tauri::command]
 async fn subscribe(tier: String) -> Result<bool, String> {
-    // vaultkeeper_billing::BillingEngine::set_subscription(&mut self, SubscriptionTier)
-    //   -> Result<Decimal, BillingError>
     let mut billing = vaultkeeper_billing::BillingEngine::new();
 
     let sub = match tier.as_str() {
@@ -261,11 +239,83 @@ async fn subscribe(tier: String) -> Result<bool, String> {
     Ok(true)
 }
 
-/// Check whether the current platform allows hosting (false on mobile).
+/// Check whether the current platform allows hosting.
+/// On mobile (android/ios): always returns false (hosting prohibited).
+/// On desktop: checks Wi-Fi connection (stub — use network-info in production).
 #[tauri::command]
 async fn check_host_eligibility() -> Result<bool, String> {
-    // vaultkeeper_storage::is_hosting_available() -> bool
-    Ok(vaultkeeper_storage::is_hosting_available())
+    // Mobile: hosting is ALWAYS disabled
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return Ok(false);
+    }
+
+    // Desktop: check platform availability + Wi-Fi requirement
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        if !vaultkeeper_storage::is_hosting_available() {
+            return Ok(false);
+        }
+        // TODO: In production, use `network-info` or `nix` crate to detect
+        // connection type. Only allow hosting on Wi-Fi / Ethernet.
+        // Mobile data should be rejected to prevent unexpected data charges.
+        let _is_wifi = true; // placeholder
+        Ok(true)
+    }
+}
+
+/// Upload file data through the P2P layer. Returns file_id on success.
+#[tauri::command]
+async fn upload_file(
+    file_name: String,
+    file_data: Vec<u8>,
+    replication: u8,
+    disk_type: String,
+) -> Result<UploadResult, String> {
+    let mut node = vaultkeeper_p2p::P2PNode::new_with_nat_support()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let disk = disk_type.parse::<vaultkeeper_p2p::DiskType>()
+        .map_err(|e| e.to_string())?;
+
+    let params = vaultkeeper_p2p::UploadParams {
+        replication,
+        disk_type: disk,
+        cushion_enabled: true,
+        max_cost: rust_decimal::Decimal::ZERO,
+    };
+
+    let file_id = node
+        .upload_chunks(&file_data, params)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(UploadResult {
+        success: true,
+        file_id: Some(file_id),
+        error: None,
+        cost: None,
+    })
+}
+
+/// Download file data by file_id through the P2P layer.
+#[tauri::command]
+async fn download_file(file_id: String) -> Result<DownloadResult, String> {
+    let mut node = vaultkeeper_p2p::P2PNode::new_with_nat_support()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let data = node
+        .download_file(&file_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(DownloadResult {
+        success: true,
+        local_path: None,
+        error: None,
+    })
 }
 
 // ─── Entry point ───────────────────────────────────────────────────────────
@@ -274,6 +324,7 @@ async fn check_host_eligibility() -> Result<bool, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             generate_seed,
@@ -284,14 +335,34 @@ pub fn run() {
             estimate_cost,
             subscribe,
             check_host_eligibility,
+            upload_file,
+            download_file,
         ])
         .setup(|app| {
+            // Auto-update check in release builds
             #[cfg(not(debug_assertions))]
             {
-                // Auto-update check placeholder — full implementation needs
-                // Ed25519 pubkey in tauri.conf.json plugins.updater.pubkey
-                let _handle = app.handle().clone();
+                use tauri_plugin_updater::UpdaterExt;
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    match app_handle.updater_builder().build() {
+                        Ok(updater) => {
+                            if let Err(e) = updater.check_and_install().await {
+                                tracing::error!("Auto-update failed: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Updater builder failed: {}", e);
+                        }
+                    }
+                });
             }
+
+            #[cfg(debug_assertions)]
+            {
+                tracing::info!("Running in debug mode — auto-updater disabled");
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -5,7 +5,9 @@
 //! Data is padded to a multiple of shard_size before encoding.
 
 use anyhow::Result;
-use crate::types::{RS_DATA_SHARDS, RS_PARITY_SHARDS, RS_TOTAL_SHARDS, CHUNK_SIZE};
+use crate::types::{RS_DATA_SHARDS, RS_PARITY_SHARDS, RS_TOTAL_SHARDS};
+#[cfg(test)]
+use crate::types::CHUNK_SIZE;
 use reed_solomon_erasure::galois_8::ReedSolomon;
 
 /// Encode data into data_shards + parity_shards using Reed-Solomon erasure coding.

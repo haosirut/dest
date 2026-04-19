@@ -57,6 +57,19 @@ pub fn run() {
             connected_peers: Mutex::new(0),
         })
         .invoke_handler(tauri::generate_handler![get_status, get_balance, update_balance])
+        .setup(|app| {
+            // Force window to center and show (overrides cached position)
+            if let Some(window) = app.get_webview_window("main") {
+                println!("[vaultkeeper] Window acquired, centering and showing...");
+                let _ = window.center();
+                let _ = window.show();
+                let _ = window.set_focus();
+                println!("[vaultkeeper] Window is visible: {}", window.is_visible().unwrap_or(false));
+            } else {
+                println!("[vaultkeeper] WARNING: main window not found!");
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

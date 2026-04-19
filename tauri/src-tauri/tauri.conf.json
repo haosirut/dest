@@ -10,6 +10,20 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "VaultKeeper P2P",
+        "label": "main",
+        "width": 900,
+        "height": 600,
+        "center": true,
+        "visible": true,
+        "focus": true,
+        "decorations": true,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
     "security": {
       "csp": "default-src 'self'; connect-src 'self' https: wss: asset: https://asset.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'",
       "assetProtocol": {

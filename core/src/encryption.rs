@@ -2,7 +2,7 @@
 //! Keys NEVER leave the device. Nonces are unique per encryption operation.
 
 use crate::types::*;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chacha20poly1305::{
     aead::{Aead, KeyInit, OsRng},
     XChaCha20Poly1305, XNonce,

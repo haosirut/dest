@@ -1,7 +1,6 @@
 //! Data chunking: splits data into 4 MiB chunks for storage and reassembly.
 
 use crate::types::*;
-use rand::Rng;
 
 /// Split data into fixed-size 4 MiB chunks.
 pub fn chunk_data(data: &[u8]) -> Vec<Vec<u8>> {
@@ -43,6 +42,7 @@ pub fn generate_chunk_ids(chunks: &[Vec<u8>]) -> Vec<ChunkId> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
 
     #[test]
     fn test_chunk_exact_size() {

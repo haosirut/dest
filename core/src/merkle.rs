@@ -30,7 +30,7 @@ impl MerkleTree {
         }
 
         let mut layers = vec![leaves.clone()];
-        let mut current = leaves;
+        let mut current = leaves.clone();
 
         while current.len() > 1 {
             let mut next = Vec::with_capacity((current.len() + 1) / 2);

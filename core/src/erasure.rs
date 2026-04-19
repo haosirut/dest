@@ -70,22 +70,22 @@ pub fn reconstruct(shard_data: &[(usize, Vec<u8>)]) -> Result<Vec<u8>> {
     let rs = ReedSolomon::new(RS_DATA_SHARDS, RS_PARITY_SHARDS)
         .context("Failed to create Reed-Solomon decoder")?;
 
-    // reed-solomon-erasure v6: reconstruct takes a single &mut [Option<&[u8]>] argument
-    let shards_ref: Vec<Option<&[u8]>> = shards.iter().map(|opt| opt.as_deref()).collect();
-
-    let mut reconstructed_data = vec![vec![0u8; shard_size]; RS_TOTAL_SHARDS];
-    let mut reconstructed_ref: Vec<Option<&mut [u8]>> = reconstructed_data
+    // reed-solomon-erasure v6: reconstruct takes a single &mut [Option<&mut [u8]>] argument
+    // None = missing shard, Some(&mut [u8]) = present shard to use for recovery
+    let mut shards_mut: Vec<Option<&mut [u8]>> = shards
         .iter_mut()
-        .map(|s| Some(s.as_mut_slice()))
+        .map(|opt| opt.as_mut().map(|v| v.as_mut_slice()))
         .collect();
 
-    rs.reconstruct(&mut reconstructed_ref, &shards_ref)
+    rs.reconstruct(&mut shards_mut)
         .context("Reed-Solomon reconstruction failed")?;
 
-    // Extract only data shards
+    // Extract only data shards (reconstruct filled in missing shards in-place)
     let mut result = Vec::with_capacity(RS_DATA_SHARDS * shard_size);
     for i in 0..RS_DATA_SHARDS {
-        result.extend_from_slice(&reconstructed_data[i]);
+        if let Some(ref shard) = shards[i] {
+            result.extend_from_slice(shard);
+        }
     }
 
     Ok(result)

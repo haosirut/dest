@@ -1,7 +1,9 @@
 //! Reed-Solomon Erasure Coding: (3,5) scheme — any 3 of 5 shards can reconstruct data.
 //! Used for fault tolerance in distributed storage.
 
-use crate::types::*;
+use crate::types::{RS_DATA_SHARDS, RS_PARITY_SHARDS, RS_TOTAL_SHARDS};
+#[cfg(test)]
+use crate::types::CHUNK_SIZE;
 use anyhow::{Context, Result};
 use reed_solomon_erasure::galois_8::ReedSolomon;
 

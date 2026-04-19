@@ -82,7 +82,7 @@ pub enum KeyAction {
     Backup,
 }
 
-pub async fn handle_command(command: CliCommand, config_path: Option<String>) -> Result<()> {
+pub async fn handle_command(command: CliCommand, _config_path: Option<String>) -> Result<()> {
     match command {
         CliCommand::Init { data_dir } => cmd_init(&data_dir).await,
         CliCommand::Start { data_dir, api_addr } => cmd_start(&data_dir, &api_addr).await,
@@ -202,7 +202,7 @@ async fn cmd_upload(file: &str, replication: u32) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_download(chunk_id: &str, output: &str) -> Result<()> {
+async fn cmd_download(chunk_id: &str, _output: &str) -> Result<()> {
     let id = vaultkeeper_core::ChunkId::from_hex(chunk_id)
         .with_context(|| format!("Invalid chunk ID: {}", chunk_id))?;
 
@@ -227,7 +227,7 @@ async fn cmd_keys(action: KeyAction) -> Result<()> {
                 vaultkeeper_core::MnemonicWordCount::Twelve,
             )?;
             println!("=== New Recovery Key ===");
-            println!("Mnemonic: {}", mnemonic.to_phrase());
+            println!("Mnemonic: {}", mnemonic.phrase());
             println!("");
             println!("IMPORTANT: Write down these words and store them securely.");
             println!("This is the ONLY way to recover your data.");

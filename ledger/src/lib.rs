@@ -7,3 +7,5 @@ pub mod conflict;
 pub mod gossip_sync;
 pub mod schema;
 pub mod store;
+
+pub use store::LedgerStore;

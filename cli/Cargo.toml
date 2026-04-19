@@ -14,6 +14,8 @@ vaultkeeper-p2p = { path = "../p2p" }
 vaultkeeper-billing = { path = "../billing" }
 vaultkeeper-storage = { path = "../storage" }
 vaultkeeper-ledger = { path = "../ledger" }
+libp2p.workspace = true
+shellexpand = "3"
 tokio.workspace = true
 clap.workspace = true
 serde.workspace = true

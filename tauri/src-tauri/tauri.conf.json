@@ -6,7 +6,6 @@
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
-    "devUrl": "../dist",
     "frontendDist": "../dist"
   },
   "app": {

@@ -1,7 +1,7 @@
 //! Replication logic — auto-replica on node failure within 10 minutes.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tracing::{info, warn};
 
 /// Replication state for a chunk

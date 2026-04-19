@@ -8,10 +8,9 @@
 //! 5. Apply winning entries
 
 use crate::conflict::{ConflictResolver, ResolveResult};
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Sync message types for gossip protocol
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,9 +143,9 @@ impl LedgerSyncManager {
             // Detect conflicts
             let conflicts = self.conflict_resolver.detect_conflicts(local_entries, &entries);
 
-            for conflict in conflicts {
+            for conflict in &conflicts {
                 // For now, use timestamp resolution (no majority votes in initial sync)
-                let result = self.conflict_resolver.resolve(&conflict, 0, 0);
+                let result = self.conflict_resolver.resolve(conflict, 0, 0);
                 results.push(result);
             }
 

@@ -3,8 +3,7 @@
 //! Linux/Server: seccomp + cgroups to restrict fork, exec, network access.
 //! Win/macOS/Mobile: WASM sandbox (stub for future implementation).
 
-use anyhow::{Context, Result};
-use std::path::Path;
+use anyhow::Result;
 use tracing::{info, warn};
 
 /// Sandbox type based on platform

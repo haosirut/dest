@@ -48,7 +48,7 @@ impl LedgerStore {
     ) -> Result<i64> {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
-        let merkle_leaf = blake3::hash(format!("{}:{}:{}:{}", id, entry_type, amount, timestamp).as_bytes()).to_hex();
+        let merkle_leaf = blake3::hash(format!("{}:{}:{}:{}", id, entry_type, amount, timestamp).as_bytes()).to_hex().to_string();
 
         let conn = self.conn.lock().unwrap();
         let seq = schema::insert_entry(
@@ -89,7 +89,7 @@ impl LedgerStore {
         let entries = schema::get_entries_from(&conn, 0, 100_000)?;
 
         if entries.is_empty() {
-            return Ok(blake3::hash(b"empty").to_hex());
+            return Ok(blake3::hash(b"empty").to_hex().to_string());
         }
 
         // Build Merkle tree from entry hashes
@@ -110,7 +110,7 @@ impl LedgerStore {
             hashes = next_level;
         }
 
-        Ok(hashes[0].to_hex())
+        Ok(hashes[0].to_hex().to_string())
     }
 
     /// Store a Merkle root checkpoint.

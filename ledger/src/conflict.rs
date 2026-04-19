@@ -6,7 +6,7 @@
 //! 2. If timestamps are equal, use majority vote among peers
 
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// A conflict between two ledger entries
 #[derive(Debug, Clone, Serialize, Deserialize)]

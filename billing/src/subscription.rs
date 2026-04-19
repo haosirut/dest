@@ -156,7 +156,7 @@ impl SubscriptionManager {
         }
 
         let remaining_days = self.current.days_remaining() as u32;
-        let used_days = 30 - remaining_days;
+        let _used_days = 30 - remaining_days;
 
         // Pro-rata refund for unused days of old tier
         let old_daily = old_tier.price_monthly() / dec!(30);

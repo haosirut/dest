@@ -3,7 +3,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tracing::{debug, info};
+use tracing::info;
 
 /// Disk type classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

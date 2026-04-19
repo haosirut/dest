@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 use vaultkeeper_core::{
-    ChunkId, ShardIndex, CHUNK_SIZE,
+    ChunkId, ShardIndex,
 };
 
 /// Metadata stored alongside each shard
@@ -67,7 +67,7 @@ impl ShardStore {
         // Verify hash
         let meta = self.load_meta(chunk_id, shard_index)?;
         let hash = blake3::hash(&data);
-        if hash.to_hex() != meta.blake3_hash {
+        if hash.to_hex().to_string() != meta.blake3_hash {
             anyhow::bail!("Shard integrity check failed for {}:{}", chunk_id, shard_index.0);
         }
 

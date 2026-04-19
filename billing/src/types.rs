@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+#[cfg(test)]
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

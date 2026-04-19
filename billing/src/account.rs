@@ -6,6 +6,7 @@ use crate::rates::MIN_WITHDRAWAL;
 use crate::types::*;
 use chrono::Utc;
 use rust_decimal::Decimal;
+#[cfg(test)]
 use rust_decimal_macros::dec;
 use std::collections::VecDeque;
 use tracing::{info, warn};

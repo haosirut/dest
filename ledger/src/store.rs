@@ -34,7 +34,7 @@ impl LedgerStore {
 
         Ok(Self {
             conn: Mutex::new(conn),
-            db_path: ":memory:".to_string(),
+            _db_path: ":memory:".to_string(),
         })
     }
 

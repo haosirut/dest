@@ -5,7 +5,8 @@ use libp2p::{
     Multiaddr,
     PeerId,
     kad::{
-        behaviour::{Kademlia, KademliaConfig},
+        Behaviour as Kademlia,
+        Config as KademliaConfig,
         Record,
         store::MemoryStore,
     },

@@ -64,7 +64,7 @@ pub fn build_transport(
         + Unpin
         + 'static,
 > {
-    let noise_config = noise::Config::new(keypair);
+    let noise_config = noise::Config::new(keypair)?;
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(Version::V1Lazy)
         .authenticate(noise_config)

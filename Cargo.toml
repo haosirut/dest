@@ -66,8 +66,8 @@ reed-solomon-erasure = "6"
 bip39 = { version = "2", features = ["rand"] }
 
 # Decimal math
-rust_decimal = { version = "1", features = ["serde"] }
-rust_decimal_macros = "1"
+rust_decimal = { version = "1.40", features = ["serde"] }
+rust_decimal_macros = "1.40"
 
 # CLI
 clap = { version = "4", features = ["derive"] }

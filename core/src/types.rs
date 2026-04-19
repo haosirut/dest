@@ -1,6 +1,7 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// 4 MiB chunk size as specified
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
@@ -113,13 +114,12 @@ pub struct StorageProof {
     pub chunk_id: ChunkId,
     pub leaf_indices: Vec<u64>,
     pub leaves: Vec<Vec<u8>>,
-    pub proofs: Vec<Vec<blake3::Hash>>,
-    pub root: blake3::Hash,
+    pub proofs: Vec<Vec<String>>, // was: Vec<Vec<blake3::Hash>>
+    pub root: String, // was: blake3::Hash
 }
 
 /// Master key material (zeroized on drop)
-#[derive(Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct MasterKey(pub [u8; KEY_LEN]);
 
 impl MasterKey {
@@ -133,8 +133,7 @@ impl MasterKey {
 }
 
 /// Derived encryption key (zeroized on drop)
-#[derive(Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct DerivedKey(pub [u8; DERIVED_KEY_LEN]);
 
 impl DerivedKey {

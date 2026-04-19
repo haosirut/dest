@@ -12,23 +12,21 @@ pub fn encode(data: &[u8]) -> Result<Vec<Vec<u8>>> {
     let rs = ReedSolomon::new(RS_DATA_SHARDS, RS_PARITY_SHARDS)
         .context("Failed to create Reed-Solomon encoder (invalid shard counts)")?;
 
+    if data.is_empty() {
+        // Empty data: produce RS_TOTAL_SHARDS zero-length shards
+        return Ok(vec![vec![]; RS_TOTAL_SHARDS]);
+    }
+
     let total_len = ((data.len() + RS_DATA_SHARDS - 1) / RS_DATA_SHARDS) * RS_DATA_SHARDS;
-    let padded_data = {
-        let mut padded = data.to_vec();
-        padded.resize(total_len, 0);
-        padded
-    };
+    let mut padded = data.to_vec();
+    padded.resize(total_len, 0);
 
     let shard_size = total_len / RS_DATA_SHARDS;
-    let mut shards: Vec<Vec<u8>> = padded_data
+
+    let mut shards: Vec<Vec<u8>> = padded
         .chunks_exact(shard_size)
         .map(|c| c.to_vec())
         .collect();
-
-    // Pad shards to equal length
-    for shard in &mut shards {
-        shard.resize(shard_size, 0);
-    }
 
     // Add parity shards (filled with zeros initially)
     for _ in 0..RS_PARITY_SHARDS {
@@ -53,38 +51,41 @@ pub fn reconstruct(shard_data: &[(usize, Vec<u8>)]) -> Result<Vec<u8>> {
         );
     }
 
+    if shard_data.is_empty() {
+        anyhow::bail!("No shards provided");
+    }
+
     let shard_size = shard_data[0].1.len();
+
+    // Build shard array: present shards keep their data, missing shards are None
     let mut shards: Vec<Option<Vec<u8>>> = vec![None; RS_TOTAL_SHARDS];
-    let mut present_indices = Vec::new();
 
     for &(idx, ref data) in shard_data {
         if idx >= RS_TOTAL_SHARDS {
             anyhow::bail!("Shard index {} out of range (max {})", idx, RS_TOTAL_SHARDS - 1);
         }
         shards[idx] = Some(data.clone());
-        present_indices.push(idx);
     }
-
-    let mut shard_vecs: Vec<Vec<u8>> = shards
-        .into_iter()
-        .enumerate()
-        .map(|(i, opt)| {
-            opt.unwrap_or_else(|| {
-                vec![0u8; shard_size]
-            })
-        })
-        .collect();
 
     let rs = ReedSolomon::new(RS_DATA_SHARDS, RS_PARITY_SHARDS)
         .context("Failed to create Reed-Solomon decoder")?;
 
-    rs.reconstruct(&mut shard_vecs, &present_indices)
+    // reed-solomon-erasure v6: reconstruct takes a single &mut [Option<&[u8]>] argument
+    let shards_ref: Vec<Option<&[u8]>> = shards.iter().map(|opt| opt.as_deref()).collect();
+
+    let mut reconstructed_data = vec![vec![0u8; shard_size]; RS_TOTAL_SHARDS];
+    let mut reconstructed_ref: Vec<Option<&mut [u8]>> = reconstructed_data
+        .iter_mut()
+        .map(|s| Some(s.as_mut_slice()))
+        .collect();
+
+    rs.reconstruct(&mut reconstructed_ref, &shards_ref)
         .context("Reed-Solomon reconstruction failed")?;
 
     // Extract only data shards
     let mut result = Vec::with_capacity(RS_DATA_SHARDS * shard_size);
     for i in 0..RS_DATA_SHARDS {
-        result.extend_from_slice(&shard_vecs[i]);
+        result.extend_from_slice(&reconstructed_data[i]);
     }
 
     Ok(result)

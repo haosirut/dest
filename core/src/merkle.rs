@@ -54,6 +54,11 @@ impl MerkleTree {
         Self { leaves, layers, root }
     }
 
+    /// Get the Merkle root hash as hex string.
+    pub fn root_hex(&self) -> String {
+        hex::encode(self.root.as_bytes())
+    }
+
     /// Get the Merkle root hash.
     pub fn root(&self) -> Hash {
         self.root
@@ -81,7 +86,7 @@ impl MerkleTree {
                 layer[idx]
             };
             siblings.push(MerkleProofNode {
-                hash: sibling,
+                hash: hex::encode(sibling.as_bytes()), // was: sibling (blake3::Hash)
                 is_right: idx % 2 == 0,
             });
             idx /= 2;
@@ -89,36 +94,64 @@ impl MerkleTree {
 
         Some(MerkleProof {
             leaf_index: index,
-            leaf_hash: self.leaves[index],
+            leaf_hash: hex::encode(self.leaves[index].as_bytes()), // was: blake3::Hash
             siblings,
-            root: self.root,
+            root: hex::encode(self.root.as_bytes()), // was: blake3::Hash
         })
     }
 
     /// Verify a Merkle proof.
     pub fn verify_proof(proof: &MerkleProof) -> bool {
-        let mut current = proof.leaf_hash;
+        // Parse leaf_hash from hex
+        let mut current_bytes = match hex::decode(&proof.leaf_hash) {
+            Ok(b) if b.len() == 32 => {
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&b);
+                arr
+            }
+            _ => return false,
+        };
 
         for sibling in &proof.siblings {
             let mut hasher = Hasher::new();
+            let sibling_bytes = match hex::decode(&sibling.hash) {
+                Ok(b) if b.len() == 32 => {
+                    let mut arr = [0u8; 32];
+                    arr.copy_from_slice(&b);
+                    arr
+                }
+                _ => return false,
+            };
+
             if sibling.is_right {
-                hasher.update(current.as_bytes());
-                hasher.update(sibling.hash.as_bytes());
+                hasher.update(&current_bytes);
+                hasher.update(&sibling_bytes);
             } else {
-                hasher.update(sibling.hash.as_bytes());
-                hasher.update(current.as_bytes());
+                hasher.update(&sibling_bytes);
+                hasher.update(&current_bytes);
             }
-            current = hasher.finalize();
+            let result = hasher.finalize();
+            current_bytes.copy_from_slice(result.as_bytes());
         }
 
-        current == proof.root
+        // Compare with root
+        let root_bytes = match hex::decode(&proof.root) {
+            Ok(b) if b.len() == 32 => {
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&b);
+                arr
+            }
+            _ => return false,
+        };
+
+        current_bytes == root_bytes
     }
 }
 
 /// A single node in a Merkle proof path.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MerkleProofNode {
-    pub hash: Hash,
+    pub hash: String, // was: blake3::Hash
     pub is_right: bool,
 }
 
@@ -126,9 +159,9 @@ pub struct MerkleProofNode {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MerkleProof {
     pub leaf_index: usize,
-    pub leaf_hash: Hash,
+    pub leaf_hash: String, // was: blake3::Hash
     pub siblings: Vec<MerkleProofNode>,
-    pub root: Hash,
+    pub root: String, // was: blake3::Hash
 }
 
 /// Generate a Proof-of-Storage challenge with random leaf indices.
@@ -200,7 +233,7 @@ mod tests {
         let chunks = vec![b"original".to_vec()];
         let tree = MerkleTree::from_chunks(&chunks);
         let mut proof = tree.proof(0).unwrap();
-        proof.leaf_hash = blake3::hash(b"tampered");
+        proof.leaf_hash = hex::encode(blake3::hash(b"tampered").as_bytes());
         assert!(!MerkleTree::verify_proof(&proof));
     }
 

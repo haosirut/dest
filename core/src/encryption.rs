@@ -7,13 +7,14 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit, OsRng},
     XChaCha20Poly1305, XNonce,
 };
+use rand::RngCore;
 
 /// Encrypt plaintext using XChaCha20-Poly1305 with the given key.
 /// Returns (nonce, ciphertext_with_tag).
 /// Nonce is generated randomly (96-bit nonce space makes collisions negligible).
 pub fn encrypt(key: &DerivedKey, plaintext: &[u8]) -> Result<(Nonce, Vec<u8>)> {
     let cipher = XChaCha20Poly1305::new_from_slice(key.as_bytes())
-        .context("Failed to create cipher from key")?;
+        .map_err(|e| anyhow::anyhow!("Failed to create cipher from key: {}", e))?;
 
     let mut nonce_bytes = [0u8; NONCE_LEN];
     OsRng.fill_bytes(&mut nonce_bytes);
@@ -21,7 +22,7 @@ pub fn encrypt(key: &DerivedKey, plaintext: &[u8]) -> Result<(Nonce, Vec<u8>)> {
 
     let ciphertext = cipher
         .encrypt(nonce, plaintext)
-        .context("Encryption failed")?;
+        .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
 
     Ok((Nonce(nonce_bytes), ciphertext))
 }
@@ -30,13 +31,13 @@ pub fn encrypt(key: &DerivedKey, plaintext: &[u8]) -> Result<(Nonce, Vec<u8>)> {
 /// Verifies authentication tag — returns error on tampering.
 pub fn decrypt(key: &DerivedKey, nonce: &Nonce, ciphertext: &[u8]) -> Result<Vec<u8>> {
     let cipher = XChaCha20Poly1305::new_from_slice(key.as_bytes())
-        .context("Failed to create cipher from key")?;
+        .map_err(|e| anyhow::anyhow!("Failed to create cipher from key: {}", e))?;
 
     let nonce = XNonce::from_slice(nonce.as_bytes());
 
     let plaintext = cipher
         .decrypt(nonce, ciphertext)
-        .context("Decryption failed (invalid key, nonce, or tampered data)")?;
+        .map_err(|e| anyhow::anyhow!("Decryption failed (invalid key, nonce, or tampered data): {}", e))?;
 
     Ok(plaintext)
 }
@@ -44,15 +45,15 @@ pub fn decrypt(key: &DerivedKey, nonce: &Nonce, ciphertext: &[u8]) -> Result<Vec
 /// Derive a key from password using Argon2id.
 /// Salt must be stored alongside the ciphertext (non-secret).
 pub fn derive_key(password: &str, salt: &[u8; SALT_LEN]) -> Result<DerivedKey> {
-    let params = argon2::Params::new(65536, 3, 4, Some(DERIVED_KEY_LEN as u32))
-        .context("Invalid Argon2id parameters")?;
+    let params = argon2::Params::new(65536, 3, 4, Some(DERIVED_KEY_LEN))
+        .map_err(|e| anyhow::anyhow!("Invalid Argon2id parameters: {}", e))?;
 
     let argon2 = argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     let mut key = [0u8; DERIVED_KEY_LEN];
     argon2
         .hash_password_into(password.as_bytes(), salt, &mut key)
-        .context("Key derivation failed")?;
+        .map_err(|e| anyhow::anyhow!("Key derivation failed: {}", e))?;
 
     Ok(DerivedKey(key))
 }

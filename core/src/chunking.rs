@@ -1,7 +1,6 @@
 //! Data chunking: splits data into 4 MiB chunks for storage and reassembly.
 
 use crate::types::*;
-use anyhow::Result;
 use rand::Rng;
 
 /// Split data into fixed-size 4 MiB chunks.

@@ -1,12 +1,11 @@
 //! GossipSub message broadcasting for ledger sync, chunk announcements, etc.
 
-use crate::message::{GossipMessage, GossipTopic, P2pMessage};
+use crate::message::{GossipMessage, P2pMessage};
 use anyhow::Result;
 use std::collections::{HashMap, HashSet, VecDeque};
-use tracing::{debug, info, warn};
 
 /// Message priority levels for weighted scheduling
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MessagePriority {
     Low = 0,
     Normal = 1,

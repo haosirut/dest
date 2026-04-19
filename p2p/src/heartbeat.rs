@@ -4,7 +4,7 @@ use crate::message::{P2pMessage};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 /// Peer health status
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,7 +90,7 @@ impl HeartbeatManager {
     pub fn process_heartbeat(
         &mut self,
         node_id: &str,
-        timestamp: u64,
+        _timestamp: u64,
         available_space: u64,
     ) -> PeerEvent {
         let now = Instant::now();

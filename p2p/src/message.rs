@@ -1,6 +1,6 @@
 //! Network message types for P2P communication.
 
-use crate::challenge::{StorageChallenge, StorageProof};
+use vaultkeeper_core::types::{StorageChallenge, StorageProof};
 use serde::{Deserialize, Serialize};
 use vaultkeeper_core::ChunkId;
 

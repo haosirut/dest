@@ -1,10 +1,6 @@
 //! Proof-of-Storage: challenge-response protocol with Merkle trees.
 
-use serde::{Deserialize, Serialize};
-use vaultkeeper_core::{
-    merkle::MerkleTree,
-    types::{ChunkId, StorageChallenge, StorageProof},
-};
+use vaultkeeper_core::types::{ChunkId, StorageChallenge, StorageProof};
 
 /// Challenge generator
 pub struct ChallengeGenerator;

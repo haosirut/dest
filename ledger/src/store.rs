@@ -11,7 +11,7 @@ use tracing::{debug, info};
 /// The local ledger store backed by SQLite.
 pub struct LedgerStore {
     conn: Mutex<Connection>,
-    db_path: String,
+    _db_path: String,
 }
 
 impl LedgerStore {
@@ -23,7 +23,7 @@ impl LedgerStore {
 
         Ok(Self {
             conn: Mutex::new(conn),
-            db_path: path.to_string_lossy().to_string(),
+            _db_path: path.to_string_lossy().to_string(),
         })
     }
 

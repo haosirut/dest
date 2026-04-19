@@ -5,10 +5,7 @@ use libp2p::{
     Transport,
     core::upgrade::Version,
     identity::Keypair as IdentityKeypair,
-    noise::{AuthenticKeypair, Keypair as NoiseKeypair, Noise},
-    tcp::TokioTcpConfig,
-    yamux::YamuxConfig,
-    PeerId,
+    noise, tcp, yamux, PeerId,
 };
 use tracing::info;
 
@@ -67,13 +64,11 @@ pub fn build_transport(
         + Unpin
         + 'static,
 > {
-    let noise_keypair = NoiseKeypair::new(keypair);
-    let noise = Noise::new(AuthenticKeypair::new(noise_keypair));
-    let transport = TokioTcpConfig::new()
-        .nodelay(true)
+    let noise_config = noise::Config::new(keypair);
+    let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(Version::V1Lazy)
-        .authenticate(noise)
-        .multiplex(YamuxConfig::default())
+        .authenticate(noise_config)
+        .multiplex(yamux::Config::default())
         .boxed();
 
     info!("P2P transport configured: TCP + Noise + Yamux");

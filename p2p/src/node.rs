@@ -11,7 +11,7 @@ use anyhow::Result;
 use libp2p::{PeerId, identity::Keypair};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::info;
 
 /// P2P node handle
 pub struct P2pNode {

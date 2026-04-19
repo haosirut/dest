@@ -5,15 +5,12 @@ use libp2p::{
     Multiaddr,
     PeerId,
     kad::{
-        Kademlia,
-        KademliaConfig,
-        Mode,
+        behaviour::{Kademlia, KademliaConfig},
         Record,
         store::MemoryStore,
     },
     multiaddr::Protocol,
 };
-use std::str::FromStr;
 use tracing::{debug, info, warn};
 
 /// Initialize Kademlia DHT for peer discovery.
@@ -22,7 +19,7 @@ pub fn create_kademlia(
     protocol_name: &str,
 ) -> Result<Kademlia<MemoryStore>> {
     let mut config = KademliaConfig::default();
-    config.set_protocol_names(vec![libp2p::StreamProtocol::from_str(protocol_name)?]);
+    config.set_protocol_names(vec![libp2p::StreamProtocol::try_from_owned(protocol_name.to_string())?]);
 
     let store = MemoryStore::new(local_peer_id.to_owned());
     let kademlia = Kademlia::with_config(local_peer_id.to_owned(), store, config);
@@ -46,10 +43,9 @@ pub fn add_bootstrap_nodes(
             .map_err(|e| anyhow::anyhow!("Failed to parse bootstrap addr '{}': {}", addr_str, e))?;
 
         let peer_id =
-            if let Some(Protocol::P2p(multihash)) = addr.iter().find(|p| matches!(p, Protocol::P2p(_)))
+            if let Some(Protocol::P2p(peer_id)) = addr.iter().find(|p| matches!(p, Protocol::P2p(_)))
             {
-                PeerId::from_multihash(multihash)
-                    .map_err(|e| anyhow::anyhow!("Invalid peer ID in bootstrap addr: {}", e))?
+                peer_id
             } else {
                 warn!("Bootstrap address missing P2p protocol: {}", addr_str);
                 continue;
@@ -75,7 +71,7 @@ pub fn put_record(
     value: Vec<u8>,
 ) -> Result<()> {
     let record = Record {
-        key: key.to_vec(),
+        key: key.to_vec().into(),
         value,
         publisher: None,
         expires: None,
@@ -90,7 +86,7 @@ pub fn get_record(
     kademlia: &mut Kademlia<MemoryStore>,
     key: &[u8],
 ) -> Result<Option<Vec<u8>>> {
-    kademlia.get_record(key.to_vec());
+    kademlia.get_record(key.to_vec().into());
     // The result comes through the event loop.
     // In a real implementation, this would use a oneshot channel.
     Ok(None)

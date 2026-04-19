@@ -1,6 +1,6 @@
 //! Tauri v2 backend commands for VaultKeeper desktop app.
 
-use tauri::State;
+use tauri::{Manager, State};
 use std::sync::Mutex;
 use serde::Serialize;
 

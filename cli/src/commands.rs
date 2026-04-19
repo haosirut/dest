@@ -125,7 +125,7 @@ async fn cmd_start(data_dir: &str, api_addr: &str) -> Result<()> {
     info!("API address: {}", api_addr);
 
     // Load config
-    let config = NodeConfig::load(&expanded)?;
+    let _config = NodeConfig::load(&expanded)?;
 
     // Initialize P2P node
     let p2p_config = vaultkeeper_p2p::P2pConfig::default();
@@ -227,7 +227,7 @@ async fn cmd_keys(action: KeyAction) -> Result<()> {
                 vaultkeeper_core::MnemonicWordCount::Twelve,
             )?;
             println!("=== New Recovery Key ===");
-            println!("Mnemonic: {}", mnemonic.phrase());
+            println!("Mnemonic: {}", mnemonic);
             println!("");
             println!("IMPORTANT: Write down these words and store them securely.");
             println!("This is the ONLY way to recover your data.");

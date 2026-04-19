@@ -22,7 +22,7 @@ impl NodeConfig {
 
         let config = Self {
             peer_id: peer_id.to_string(),
-            public_key: keypair.public().encode().to_vec(),
+            public_key: keypair.public().to_peer_id().to_bytes().to_vec(),
             data_dir: data_dir.to_string_lossy().to_string(),
             p2p_port: 9444,
             api_port: 8080,

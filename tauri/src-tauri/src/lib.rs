@@ -2,7 +2,7 @@
 
 use tauri::State;
 use std::sync::Mutex;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 struct AppState {
     balance: Mutex<f64>,

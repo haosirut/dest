@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VaultKeeper P2P</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { color: #2563eb; }
+    .status { padding: 1rem; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 0 4px 4px 0; }
+  </style>
+</head>
+<body>
+  <h1>VaultKeeper P2P</h1>
+  <div class="status">
+    Application launched! <br>
+    <small>Tauri API: <code>window.__TAURI__</code></small>
+  </div>
+  <script>
+    if (window.__TAURI__) {
+      console.log('Tauri API loaded:', Object.keys(window.__TAURI__));
+    } else {
+      console.warn('Tauri API not available in this context');
+    }
+  </script>
+</body>
+</html>

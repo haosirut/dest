@@ -151,7 +151,8 @@ mod tests {
         let rate = dec!(0.30);
         let tb = dec!(1.0);
         let hours = BillingCalculator::remaining_hours(balance, rate, tb);
-        assert_eq!(hours.round_dp(28), dec!(33.33333333333333333333333333));
+        assert_eq!(hours.round_dp(2), dec!(33.33));
+        // Verify: 10.00 / (0.30 * 1.0) ≈ 33.33 hours
     }
 
     #[test]

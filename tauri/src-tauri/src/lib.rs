@@ -10,7 +10,7 @@
 //!     Без кредита: данные удаляются сразу при нулевом балансе.
 //!   - Бонусы: сгорают через 12 месяцев.
 //!   - Вывод: будни 10:00-18:00 МСК, мин. 100 ₽.
-//!   - Закрытие аккаунта: возврат баланса минус 5%, бонусы сгорают.
+//!   - Закрытие аккаунта: полный возврат баланса, бонусы сгорают.
 
 use tauri::{Manager, State};
 use std::sync::Mutex;
@@ -37,7 +37,6 @@ const CREDIT_PERIOD_TICKS: u32 = (72.0 * 12.0) as u32; // 72h * 12 ticks/h = 864
 const BONUS_EXPIRY_TICKS: u32 = (365.0 * 24.0 * 12.0) as u32; // 12 months in ticks
 const RELAY_MAX_GRAY_CLIENTS: u32 = 7;
 const RELAY_MAX_FAIL_PCT: f64 = 0.30; // 30% failure rate
-const ACCOUNT_CLOSE_FEE_PCT: f64 = 0.05; // 5% fee on balance refund
 const SHUTDOWN_WAIT_SECONDS: u64 = 30;
 
 // ═══════════════════════════════════════════════════════════════
@@ -425,10 +424,9 @@ pub fn validate_withdraw_time() -> Result<(), String> {
     Ok(())
 }
 
-/// Calculate close account refund: return balance minus 5%, forfeit all bonuses.
+/// Calculate close account refund: return full balance, forfeit all bonuses. No fee.
 pub fn calculate_close_account_refund(balance: f64, bonus: f64) -> (f64, f64) {
-    let refund = balance * (1.0 - ACCOUNT_CLOSE_FEE_PCT);
-    (refund.max(0.0), bonus)
+    (balance.max(0.0), bonus)
 }
 
 /// Expire old bonuses: return sum of expired amounts.
@@ -637,7 +635,7 @@ fn request_payout(state: State<AppState>) -> Result<String, String> {
     Ok(format!("Заявка на вывод {:.2} ₽ создана", balance))
 }
 
-/// Close client account: refund balance minus 5%, delete all files, forfeit bonuses.
+/// Close client account: refund full balance, delete all files, forfeit bonuses.
 #[tauri::command]
 fn close_client_account(state: State<AppState>) -> Result<CloseAccountResponse, String> {
     let balance = *state.client_balance.lock().unwrap();
@@ -657,7 +655,7 @@ fn close_client_account(state: State<AppState>) -> Result<CloseAccountResponse, 
     state.payment_history.lock().unwrap().push(PaymentRecord {
         id: uuid_str(), kind: "account_close".to_string(), amount: -refund,
         wallet: "client".to_string(),
-        description: format!("Закрытие аккаунта: возврат {:.2} ₽ (комиссия 5% = {:.2} ₽)", refund, balance - refund),
+        description: format!("Закрытие аккаунта: возврат {:.2} ₽", refund),
         timestamp: now_str(),
     });
 
@@ -1616,7 +1614,7 @@ mod tests {
     #[test]
     fn test_close_account_refund() {
         let (refund, forfeited) = calculate_close_account_refund(1000.0, 50.0);
-        assert!((refund - 950.0).abs() < 1e-9); // 95% of 1000
+        assert!((refund - 1000.0).abs() < 1e-9); // full balance, no fee
         assert!((forfeited - 50.0).abs() < 1e-9); // bonus fully forfeited
     }
 

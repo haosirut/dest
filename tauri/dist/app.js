@@ -152,7 +152,7 @@ $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
 // ─── Refresh ─────────────────────────────────────────────────
 
 async function refreshAll() {
-    await Promise.all([refreshBalances(), refreshFiles(), refreshKeeperStats(), refreshClientStats(), refreshPaymentHistory(), refreshReferralInfo(), refreshSettings(), refreshGeo(), updateCalculator()]);
+    await Promise.all([refreshBalances(), refreshFiles(), refreshKeeperStats(), refreshClientStats(), refreshPaymentHistory(), refreshReferralInfo(), refreshSettings(), updateCalculator()]);
 }
 
 // ─── Files ───────────────────────────────────────────────────
@@ -442,8 +442,6 @@ $('#setting-credit-keeper').addEventListener('change', async e=>{
     if(r!==null) toast(r?'Кредитное хранение включено':'Кредитное хранение выключено','info');
     refreshSettings();
 });
-
-$('#credit-client-terms').classList.toggle;
 
 $('#btn-save-settings').addEventListener('click', async()=>{
     const s={

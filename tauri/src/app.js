@@ -148,7 +148,7 @@ $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
 // ─── Refresh ─────────────────────────────────────────────────
 
 async function refreshAll() {
-    await Promise.all([refreshBalances(), refreshFiles(), refreshKeeperStats(), refreshClientStats(), refreshPaymentHistory(), refreshReferralInfo(), refreshSettings(), refreshGeo(), updateCalculator()]);
+    await Promise.all([refreshBalances(), refreshFiles(), refreshKeeperStats(), refreshClientStats(), refreshPaymentHistory(), refreshReferralInfo(), refreshSettings(), updateCalculator()]);
 }
 
 // ─── Files ───────────────────────────────────────────────────
@@ -315,7 +315,7 @@ $('#btn-toggle-relay').addEventListener('click', async()=>{
 
 $('#btn-graceful-shutdown').addEventListener('click', async()=>{
     if(!confirm('Graceful shutdown уведомит сеть. Продолжить?')) return;
-    const r=await inv('graceful_shutdown');
+    const r=await inv('initiate_shutdown');
     if(r) toast(r,'success');
 });
 
@@ -439,7 +439,6 @@ $('#setting-credit-keeper').addEventListener('change', async e=>{
     refreshSettings();
 });
 
-$('#credit-client-terms').classList.toggle;
 
 $('#btn-save-settings').addEventListener('click', async()=>{
     const s={

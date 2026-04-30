@@ -72,7 +72,7 @@ struct AppState {
     keeper_earnings_total: Mutex<f64>,
     relay_enabled: Mutex<bool>,
     relay_fail_pct_60min: Mutex<f64>,
-    relay_incidents_24h: Mutex<u32>,
+    _relay_incidents_24h: Mutex<u32>,
     relay_banned_until_tick: Mutex<u32>,
     relay_gray_clients: Mutex<u32>,
 
@@ -197,7 +197,7 @@ struct WarningEntry {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-struct BonusEntry {
+pub(crate) struct BonusEntry {
     id: String,
     amount: f64,
     created_at_tick: u32,
@@ -206,7 +206,7 @@ struct BonusEntry {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-struct NotificationEvent {
+struct _NotificationEvent {
     kind: String,        // "low_balance", "penalty", "data_delete", "shutdown"
     message: String,
     timestamp: String,
@@ -427,6 +427,17 @@ pub fn validate_withdraw_time() -> Result<(), String> {
 /// Calculate close account refund: return full balance, forfeit all bonuses. No fee.
 pub fn calculate_close_account_refund(balance: f64, bonus: f64) -> (f64, f64) {
     (balance.max(0.0), bonus)
+}
+
+/// Add a bonus entry with automatic expiry.
+pub(crate) fn add_bonus(bonus_entries: &mut Vec<BonusEntry>, amount: f64, current_tick: u32, source: &str) {
+    bonus_entries.push(BonusEntry {
+        id: uuid_str(),
+        amount,
+        created_at_tick: current_tick,
+        expiry_tick: current_tick + BONUS_EXPIRY_TICKS,
+        source: source.to_string(),
+    });
 }
 
 /// Expire old bonuses: return sum of expired amounts.
@@ -1241,7 +1252,7 @@ pub fn run() {
             keeper_earnings_total: Mutex::new(0.0),
             relay_enabled: Mutex::new(false),
             relay_fail_pct_60min: Mutex::new(0.0),
-            relay_incidents_24h: Mutex::new(0),
+            _relay_incidents_24h: Mutex::new(0),
             relay_banned_until_tick: Mutex::new(0),
             relay_gray_clients: Mutex::new(0),
             connected_peers: Mutex::new(0),

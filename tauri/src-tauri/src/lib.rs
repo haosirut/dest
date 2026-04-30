@@ -709,7 +709,7 @@ fn get_settings(state: State<AppState>) -> AppSettings {
 
 #[tauri::command]
 fn save_settings(state: State<AppState>, settings: AppSettings) -> Result<(), String> {
-    *state.credit_storage_client.lock().unwrap() = settings.credit_storage_client;
+    *state.credit_storage_enabled.lock().unwrap() = settings.credit_storage_client;
     *state.credit_storage_keeper.lock().unwrap() = settings.credit_storage_keeper;
     *state.settings.lock().unwrap() = settings;
     Ok(())
@@ -1134,7 +1134,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rating_pay_slow capped() {
+    fn test_rating_pay_slow_capped() {
         let rp = calc_rating_pay(1.0, 200.0);
         assert!((rp - 1.0).abs() < 1e-9); // speed capped at 1.0
     }

@@ -23,7 +23,8 @@
         "focus": true,
         "decorations": true,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "devtools": true
       }
     ],
     "security": {

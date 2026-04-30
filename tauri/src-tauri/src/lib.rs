@@ -672,10 +672,12 @@ fn close_client_account(state: State<AppState>) -> Result<CloseAccountResponse, 
         timestamp: now_str(),
     });
 
-    // Send notification
+    // Send notification (non-blocking)
     let settings = state.settings.lock().unwrap().clone();
     let pid = state.peer_id.lock().unwrap().clone();
-    notifications::notify_data_delete(&settings, &pid, "Аккаунт закрыт пользователем");
+    std::thread::spawn(move || {
+        notifications::notify_data_delete(&settings, &pid, "Аккаунт закрыт пользователем");
+    });
 
     Ok(CloseAccountResponse {
         refund_amount: refund,
@@ -884,7 +886,9 @@ fn initiate_shutdown(state: State<AppState>, app: tauri::AppHandle) -> Result<St
 fn send_shutdown_notification(state: State<AppState>) {
     let settings = state.settings.lock().unwrap().clone();
     let peer_id = state.peer_id.lock().unwrap().clone();
-    notifications::notify_shutdown(&settings, &peer_id, SHUTDOWN_WAIT_SECONDS);
+    std::thread::spawn(move || {
+        notifications::notify_shutdown(&settings, &peer_id, SHUTDOWN_WAIT_SECONDS);
+    });
 }
 
 /// Send low-balance notification.
@@ -894,7 +898,9 @@ fn send_low_balance_notification(state: State<AppState>) {
     if balance < 10.0 && *state.storage_used_gb.lock().unwrap() > 0.0 {
         let settings = state.settings.lock().unwrap().clone();
         let peer_id = state.peer_id.lock().unwrap().clone();
-        notifications::notify_low_balance(&settings, &peer_id, balance);
+        std::thread::spawn(move || {
+            notifications::notify_low_balance(&settings, &peer_id, balance);
+        });
     }
 }
 
@@ -1094,12 +1100,14 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
         *bal -= total_charge - from_bonus;
     }
 
-    // ── Low-balance notification ──
+    // ── Low-balance notification (non-blocking) ──
     let bal_notify = *state.client_balance.lock().unwrap();
     if bal_notify < 10.0 && *state.storage_used_gb.lock().unwrap() > 0.0 {
         let settings = state.settings.lock().unwrap().clone();
         let pid = state.peer_id.lock().unwrap().clone();
-        notifications::notify_low_balance(&settings, &pid, bal_notify);
+        std::thread::spawn(move || {
+            notifications::notify_low_balance(&settings, &pid, bal_notify);
+        });
     }
 
     // ── Zero-balance handling ──
@@ -1118,12 +1126,14 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
                     reason: "Кредитный период (72 ч) истёк".into(),
                     action: "data_deleted".into(), tick,
                 });
-                // Send notification
+                // Send notification (non-blocking)
                 drop(files);
                 {
                     let settings = state.settings.lock().unwrap().clone();
                     let pid = state.peer_id.lock().unwrap().clone();
-                    notifications::notify_data_delete(&settings, &pid, "Кредитный период (72 ч) истёк");
+                    std::thread::spawn(move || {
+                        notifications::notify_data_delete(&settings, &pid, "Кредитный период (72 ч) истёк");
+                    });
                 }
             }
         } else {
@@ -1137,11 +1147,13 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
                     action: "data_deleted".into(), tick,
                 });
                 drop(files);
-                // Send notification
+                // Send notification (non-blocking)
                 {
                     let settings = state.settings.lock().unwrap().clone();
                     let pid = state.peer_id.lock().unwrap().clone();
-                    notifications::notify_data_delete(&settings, &pid, "Баланс исчерпан, кредит не подключён");
+                    std::thread::spawn(move || {
+                        notifications::notify_data_delete(&settings, &pid, "Баланс исчерпан, кредит не подключён");
+                    });
                 }
             }
         }
@@ -1273,6 +1285,10 @@ fn to_hex(bytes: &[u8]) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logging for debug builds
+    #[cfg(debug_assertions)]
+    let _ = tracing_subscriber::fmt::init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {

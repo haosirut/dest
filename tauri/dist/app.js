@@ -336,7 +336,7 @@ $('#btn-toggle-relay').addEventListener('click', async()=>{
 
 $('#btn-graceful-shutdown').addEventListener('click', async()=>{
     if(!confirm('Graceful shutdown уведомит сеть. Продолжить?')) return;
-    const r=await inv('graceful_shutdown');
+    const r=await inv('initiate_shutdown');
     if(r) toast(r,'success');
 });
 

@@ -558,6 +558,40 @@
     </div>
 
     <div id="toast-container"></div>
+    <script>
+    // ═══ DEBUG LOGGER — catches ALL errors before anything else loads ═══
+    (function(){
+        const logEl = document.createElement('div');
+        logEl.id = 'debug-log';
+        logEl.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:200px;overflow:auto;background:rgba(0,0,0,0.9);color:#0f0;font:12px monospace;z-index:999999;padding:8px;display:none;border-top:2px solid #39FF14;';
+        document.body.appendChild(logEl);
+        window._dbg = function(msg, type){
+            const ts = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.style.color = type==='error'?'#f44':type==='warn'?'#fa0':'#0f0';
+            line.textContent = '['+ts+'] '+msg;
+            logEl.appendChild(line);
+            logEl.style.display = 'block';
+            logEl.scrollTop = logEl.scrollHeight;
+        };
+        window._dbg('DEBUG LOG ACTIVE');
+
+        window.onerror = function(msg, src, line, col, err) {
+            window._dbg('ERROR: '+msg+' ('+src+':'+line+':'+col+')', 'error');
+            return false; // still show in console
+        };
+        window.addEventListener('unhandledrejection', function(e) {
+            window._dbg('REJECTED: '+String(e.reason), 'error');
+        });
+
+        // Toggle debug log with Ctrl+Shift+D
+        document.addEventListener('keydown', function(e) {
+            if(e.ctrlKey && e.shiftKey && e.key==='D') {
+                logEl.style.display = logEl.style.display==='none' ? 'block' : 'none';
+            }
+        });
+    })();
+    </script>
     <script src="purify.min.js"></script>
     <script src="app.js"></script>
 </body>

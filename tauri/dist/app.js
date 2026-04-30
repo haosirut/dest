@@ -2,7 +2,9 @@
 // Соты — P2P Хранилище: Frontend Application Logic v2
 // ═══════════════════════════════════════════════════════════════
 
+if (window._dbg) window._dbg('app.js loading...');
 const { invoke } = window.__TAURI__.core;
+if (window._dbg) window._dbg('Tauri invoke acquired');
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
@@ -24,8 +26,10 @@ const state = { initialized:false, isKeeper:false, calcDisk:'hdd', topupMethod:'
 // ─── Onboarding ──────────────────────────────────────────────
 
 async function init() {
+    if (window._dbg) window._dbg('init() called');
     if (await inv('check_initialized')) showApp();
     startTimer();
+    if (window._dbg) window._dbg('init() done');
 }
 
 $('#btn-create-wallet').addEventListener('click', async () => {
@@ -134,10 +138,12 @@ $('#btn-verify-cancel').addEventListener('click', () => {
 });
 
 function showApp() {
+    if (window._dbg) window._dbg('showApp() called');
     $('#onboarding').classList.add('hidden');
     $('#app-main').classList.remove('hidden');
     state.initialized = true;
-    refreshAll();
+    if (window._dbg) window._dbg('calling refreshAll()');
+    refreshAll().then(() => { if (window._dbg) window._dbg('refreshAll() DONE'); });
 }
 
 // ─── Tab Navigation ──────────────────────────────────────────
@@ -152,7 +158,18 @@ $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
 // ─── Refresh ─────────────────────────────────────────────────
 
 async function refreshAll() {
-    await Promise.all([refreshBalances(), refreshFiles(), refreshKeeperStats(), refreshClientStats(), refreshPaymentHistory(), refreshReferralInfo(), refreshSettings(), updateCalculator()]);
+    if (window._dbg) window._dbg('refreshAll start');
+    await Promise.all([
+        refreshBalances().catch(e=>{if(window._dbg)window._dbg('refreshBalances ERR: '+e,'error');}),
+        refreshFiles().catch(e=>{if(window._dbg)window._dbg('refreshFiles ERR: '+e,'error');}),
+        refreshKeeperStats().catch(e=>{if(window._dbg)window._dbg('refreshKeeperStats ERR: '+e,'error');}),
+        refreshClientStats().catch(e=>{if(window._dbg)window._dbg('refreshClientStats ERR: '+e,'error');}),
+        refreshPaymentHistory().catch(e=>{if(window._dbg)window._dbg('refreshPaymentHistory ERR: '+e,'error');}),
+        refreshReferralInfo().catch(e=>{if(window._dbg)window._dbg('refreshReferralInfo ERR: '+e,'error');}),
+        refreshSettings().catch(e=>{if(window._dbg)window._dbg('refreshSettings ERR: '+e,'error');}),
+        updateCalculator().catch(e=>{if(window._dbg)window._dbg('updateCalculator ERR: '+e,'error');}),
+    ]);
+    if (window._dbg) window._dbg('refreshAll DONE');
 }
 
 // ─── Files ───────────────────────────────────────────────────

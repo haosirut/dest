@@ -39,9 +39,13 @@ pub fn add_bootstrap_nodes(
 ) -> Result<usize> {
     let mut added = 0;
     for addr_str in bootstrap_addrs {
-        let addr: Multiaddr = addr_str
-            .parse()
-            .map_err(|e| anyhow::anyhow!("Failed to parse bootstrap addr '{}': {}", addr_str, e))?;
+        let addr: Multiaddr = match addr_str.parse() {
+            Ok(a) => a,
+            Err(e) => {
+                warn!("Failed to parse bootstrap addr '{}': {}", addr_str, e);
+                continue;
+            }
+        };
 
         let peer_id =
             if let Some(Protocol::P2p(peer_id)) = addr.iter().find(|p| matches!(p, Protocol::P2p(_)))

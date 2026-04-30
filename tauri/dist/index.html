@@ -32,37 +32,27 @@
                 <button class="btn btn-ghost" id="btn-cancel-restore">Отмена</button>
             </div>
             <div id="wallet-created" class="hidden">
-                <div class="success-box">
-                    <div class="success-icon">&#10003;</div>
-                    <p>Ключ создан! Запомните фразу восстановления — она больше не будет отображена.</p>
-                </div>
-                <div class="mnemonic-box" id="mnemonic-display"></div>
-                <div class="peer-id-box">
-                    <span class="label">Ваш Peer ID:</span>
-                    <code id="peer-id-display"></code>
-                </div>
-                <button class="btn btn-green btn-lg" id="btn-enter-app-first">Я запомнил, продолжить</button>
-                <div id="mnemonic-verify" class="hidden">
+                <div class="key-display-wrapper">
                     <div class="success-box">
-                        <p>Проверка: введите 3 слова из фразы восстановления для подтверждения.</p>
-                        <p>Слова: <strong id="verify-word-1-hint">?</strong>, <strong id="verify-word-2-hint">?</strong>, <strong id="verify-word-3-hint">?</strong></p>
+                        <div class="success-icon">&#10003;</div>
+                        <p>Ключ создан! Запомните фразу восстановления &#8212; она больше не будет отображена.</p>
                     </div>
-                    <div class="verify-grid">
-                        <div class="input-group">
-                            <label class="input-label" id="verify-label-1">Слово #1</label>
-                            <input type="text" id="verify-word-1" class="input-field" autocomplete="off" placeholder="Введите слово">
-                        </div>
-                        <div class="input-group">
-                            <label class="input-label" id="verify-label-2">Слово #2</label>
-                            <input type="text" id="verify-word-2" class="input-field" autocomplete="off" placeholder="Введите слово">
-                        </div>
-                        <div class="input-group">
-                            <label class="input-label" id="verify-label-3">Слово #3</label>
-                            <input type="text" id="verify-word-3" class="input-field" autocomplete="off" placeholder="Введите слово">
-                        </div>
+                    <div class="security-warning">
+                        &#9888;&#65039; Хранение мнемонической фразы и Peer ID в открытом виде небезопасно. Запишите их на бумаге или в защищённом менеджере паролей. Не делайте скриншотов и не отправляйте никому.
                     </div>
-                    <div id="verify-error" class="warning-strip hidden">Неверные слова. Попробуйте снова.</div>
-                    <button class="btn btn-green btn-lg" id="btn-verify-mnemonic">Подтвердить</button>
+                    <div class="mnemonic-box" id="mnemonic-display">
+                        <span id="mnemonic-text"></span>
+                        <button class="copy-btn" id="btn-copy-mnemonic" title="Копировать фразу">&#128203;</button>
+                    </div>
+                    <div class="peer-id-box">
+                        <span class="label">Ваш Peer ID:</span>
+                        <code id="peer-id-display"></code>
+                        <button class="copy-btn" id="btn-copy-peer-id" title="Копировать Peer ID">&#128203;</button>
+                    </div>
+                </div>
+                <div class="onboarding-btns">
+                    <button class="btn btn-outline btn-lg" id="btn-key-written">Ключ записан</button>
+                    <button class="btn btn-lg btn-continue-disabled" id="btn-continue" disabled>Продолжить</button>
                 </div>
             </div>
         </div>

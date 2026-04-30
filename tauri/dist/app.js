@@ -30,7 +30,7 @@ async function init() {
 
 $('#btn-create-wallet').addEventListener('click', async () => {
     const info = await inv('create_wallet');
-    if (info) { $('#mnemonic-display').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); }
+    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); }
 });
 
 $('#btn-restore-wallet').addEventListener('click', () => { $('#restore-form').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); });
@@ -39,37 +39,48 @@ $('#btn-do-restore').addEventListener('click', async () => {
     const m=$('#mnemonic-input').value.trim();
     if (!m) { toast('Введите фразу','error'); return; }
     const info = await inv('restore_wallet', { mnemonic: m });
-    if (info) { $('#mnemonic-display').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#restore-form').classList.add('hidden'); }
+    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#restore-form').classList.add('hidden'); }
 });
 
-$('#btn-enter-app-first').addEventListener('click', async () => {
-    const mnemonic = $('#mnemonic-display').textContent;
-    const words = mnemonic.trim().split(/\s+/);
-    // Pick 3 random positions: 5, 11, 17 (fixed for reproducibility in test)
-    const positions = [5, 11, 17];
-    positions.forEach((pos, i) => {
-        const word = words[pos] || '?';
-        $(`#verify-word-${i+1}-hint`).textContent = word;
-        $(`#verify-label-${i+1}`).textContent = `Слово #${i+1} (позиция ${pos+1})`;
-        $(`#verify-word-${i+1}`).value = '';
-    });
-    $('#wallet-created .btn-green').hide();
-    $('#mnemonic-verify').classList.remove('hidden');
-});
+// ─── Copy buttons (clipboard) ───────────────────────────────
 
-$('#btn-verify-mnemonic').addEventListener('click', async () => {
-    const mnemonic = $('#mnemonic-display').textContent;
-    const words = mnemonic.trim().split(/\s+/);
-    const positions = [5, 11, 17];
-    const expected = [$('#verify-word-1').value.trim(), $('#verify-word-2').value.trim(), $('#verify-word-3').value.trim()];
-    const ok = await inv('verify_mnemonic_words_cmd', { positions, expected });
-    if (ok) {
-        await inv('confirm_mnemonic_shown');
-        showApp();
-    } else {
-        $('#verify-error').classList.remove('hidden');
-        toast('Неверные слова', 'error');
+async function copyToClipboard(text, btnEl) {
+    try {
+        await navigator.clipboard.writeText(text);
+        btnEl.classList.add('copied');
+        btnEl.textContent = '\u2705';
+        toast('Скопировано', 'success');
+        setTimeout(() => { btnEl.classList.remove('copied'); btnEl.innerHTML = '&#128203;'; }, 2000);
+    } catch(e) {
+        toast('Не удалось скопировать', 'error');
     }
+}
+
+$('#btn-copy-mnemonic').addEventListener('click', () => {
+    copyToClipboard($('#mnemonic-text').textContent.trim(), $('#btn-copy-mnemonic'));
+});
+
+$('#btn-copy-peer-id').addEventListener('click', () => {
+    copyToClipboard($('#peer-id-display').textContent.trim(), $('#btn-copy-peer-id'));
+});
+
+// ─── Key written + Continue buttons ─────────────────────────
+
+$('#btn-key-written').addEventListener('click', () => {
+    const btn = $('#btn-continue');
+    btn.disabled = false;
+    btn.classList.add('active');
+    // Visually disable "Ключ записан" so it can't be pressed again
+    $('#btn-key-written').disabled = true;
+    $('#btn-key-written').style.opacity = '0.4';
+    $('#btn-key-written').style.cursor = 'default';
+    toast('Нажмите "Продолжить" для входа', 'info');
+});
+
+$('#btn-continue').addEventListener('click', async () => {
+    if ($('#btn-continue').disabled) return;
+    await inv('confirm_mnemonic_shown');
+    showApp();
 });
 
 function showApp() {

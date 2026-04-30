@@ -415,13 +415,14 @@ async function refreshSettings() {
     const g=await inv('check_geo');
     if(g){$('#settings-install-id').textContent=g.installationId;if(g.verified)$('#geo-status').innerHTML='<span class="dot online"></span><span>РФ подтверждена</span>';}
 
-    const s_settings = await inv('get_settings');
-    if(s_settings) {
-        $('#setting-notify-enabled').checked = s_settings.notifyEnabled;
-        $('#setting-notify-email').value = s_settings.notifyEmail || '';
-        $('#setting-smtp-host').value = s_settings.smtpHost || '';
-        $('#setting-smtp-port').value = s_settings.smtpPort || 587;
-        $('#setting-smtp-login').value = s_settings.smtpLogin || '';
+    const s2 = await inv('get_settings');
+    if(s2) {
+        const el = (id) => document.getElementById(id);
+        if (el('setting-notify-enabled')) el('setting-notify-enabled').checked = s2.notifyEnabled;
+        if (el('setting-notify-email')) el('setting-notify-email').value = s2.notifyEmail || '';
+        if (el('setting-smtp-host')) el('setting-smtp-host').value = s2.smtpHost || '';
+        if (el('setting-smtp-port')) el('setting-smtp-port').value = s2.smtpPort || 587;
+        if (el('setting-smtp-login')) el('setting-smtp-login').value = s2.smtpLogin || '';
     }
 }
 
@@ -448,12 +449,12 @@ $('#btn-save-settings').addEventListener('click', async()=>{
         russiaOnly:$('#setting-russia').checked,
         creditStorageClient:$('#setting-credit-client').checked,
         creditStorageKeeper:$('#setting-credit-keeper').checked,
-        notifyEnabled: $('#setting-notify-enabled').checked,
-        notifyEmail: $('#setting-notify-email').value,
-        smtpHost: $('#setting-smtp-host').value,
-        smtpPort: parseInt($('#setting-smtp-port').value) || 587,
-        smtpLogin: $('#setting-smtp-login').value,
-        smtpPasswordEncrypted: $('#setting-smtp-password').value,
+        notifyEnabled: document.getElementById('setting-notify-enabled')?.checked || false,
+        notifyEmail: document.getElementById('setting-notify-email')?.value || '',
+        smtpHost: document.getElementById('setting-smtp-host')?.value || '',
+        smtpPort: parseInt(document.getElementById('setting-smtp-port')?.value) || 587,
+        smtpLogin: document.getElementById('setting-smtp-login')?.value || '',
+        smtpPasswordEncrypted: document.getElementById('setting-smtp-password')?.value || '',
         notifyLowBalance: true,
         notifyPenalty: true,
         notifyDataDelete: true,

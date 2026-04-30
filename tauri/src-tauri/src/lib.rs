@@ -12,7 +12,7 @@
 //!   - Вывод: будни 10:00-18:00 МСК, мин. 100 ₽.
 //!   - Закрытие аккаунта: полный возврат баланса, бонусы сгорают.
 
-use tauri::{Manager, State};
+use tauri::State;
 use std::sync::Mutex;
 use serde::{Serialize, Deserialize};
 
@@ -431,7 +431,7 @@ pub fn calculate_close_account_refund(balance: f64, bonus: f64) -> (f64, f64) {
 
 /// Expire old bonuses: return sum of expired amounts.
 pub fn expire_bonuses(bonus_entries: &mut Vec<BonusEntry>, current_tick: u32) -> f64 {
-    let before = bonus_entries.len();
+    let _before = bonus_entries.len();
     let expired_sum: f64 = bonus_entries.iter()
         .filter(|b| b.expiry_tick <= current_tick)
         .map(|b| b.amount)
@@ -676,7 +676,7 @@ fn calculate_storage_cost(gb: f64, disk_type: String, credit: bool) -> CalcRespo
     let monthly = cost_gb_month(gb, &disk_type) * mult;
     let five_min = monthly / TICKS_PER_MONTH;
     CalcResponse {
-        gb, disk_type, replication: REPLICATION,
+        gb, disk_type: disk_type.clone(), replication: REPLICATION,
         price_per_gb: get_price(&disk_type),
         cost_per_month: monthly, cost_per_5min: five_min,
         credit_multiplier: mult,
@@ -729,7 +729,7 @@ fn upload_file(state: State<AppState>, name: String, size_bytes: u64, disk_type:
     *bonus -= from_bonus;
     remaining -= from_bonus;
     *balance -= remaining;
-    state.storage_used_gb.lock().unwrap() += gb;
+    *state.storage_used_gb.lock().unwrap() += gb;
 
     state.payment_history.lock().unwrap().push(PaymentRecord {
         id: uuid_str(), kind: "storage_fee".to_string(), amount: -charge_tick,
@@ -1054,7 +1054,7 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
         let mut bal = state.client_balance.lock().unwrap();
         let from_bonus = total_charge.min(*bonus);
         *bonus -= from_bonus;
-        *bal -= (total_charge - from_bonus);
+        *bal -= total_charge - from_bonus;
     }
 
     // ── Zero-balance handling ──

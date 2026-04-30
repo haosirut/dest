@@ -74,7 +74,7 @@ impl MerkleTree {
         let mut siblings = Vec::new();
         let mut idx = index;
 
-        for layer in &self.layers {
+        for layer in &self.layers[..self.layers.len() - 1] {
             let sibling_idx = if idx % 2 == 0 {
                 idx + 1
             } else {

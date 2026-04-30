@@ -9,8 +9,8 @@ use rand::rngs::OsRng;
 /// Generate a new mnemonic phrase with the specified word count.
 pub fn generate_mnemonic(word_count: MnemonicWordCount) -> Result<Mnemonic> {
     let mnemonic = match word_count {
-        MnemonicWordCount::Twelve => Mnemonic::generate_in_with(&mut OsRng, Language::English, 128),
-        MnemonicWordCount::TwentyFour => Mnemonic::generate_in_with(&mut OsRng, Language::English, 256),
+        MnemonicWordCount::Twelve => Mnemonic::generate_in_with(&mut OsRng, Language::English, 12),
+        MnemonicWordCount::TwentyFour => Mnemonic::generate_in_with(&mut OsRng, Language::English, 24),
     }
     .context("Failed to generate mnemonic")?;
     Ok(mnemonic)

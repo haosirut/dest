@@ -26,15 +26,28 @@ pub fn pad_chunk(data: &[u8]) -> Vec<u8> {
 }
 
 /// Store the original data length in a 4-byte big-endian header.
-/// The padded chunk format: [4-byte original_len] [random padding] [actual data]
-/// Original data starts at offset: CHUNK_SIZE - original_len.
+/// The padded chunk format: [4-byte original_len] [actual data] [random padding]
 pub fn pad_with_length_header(data: &[u8]) -> Vec<u8> {
-    let original_len = data.len() as u32;
-    let padded = pad_chunk(data);
+    let max_data_len = CHUNK_SIZE - 4;
+    assert!(
+        data.len() <= max_data_len,
+        "Data size {} exceeds max {} (CHUNK_SIZE - 4)",
+        data.len(),
+        max_data_len
+    );
 
-    // Write original length at the beginning of the padded chunk
-    let mut result = padded;
+    let original_len = data.len() as u32;
+    let mut result = vec![0u8; CHUNK_SIZE];
+
+    // Write header at beginning
     result[0..4].copy_from_slice(&original_len.to_be_bytes());
+    // Write data after header
+    result[4..4 + data.len()].copy_from_slice(data);
+    // Fill rest with random padding
+    if 4 + data.len() < CHUNK_SIZE {
+        let mut rng = rand::thread_rng();
+        rng.fill_bytes(&mut result[4 + data.len()..]);
+    }
 
     result
 }
@@ -45,11 +58,10 @@ pub fn unpad_with_length_header(padded: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let original_len = u32::from_be_bytes([padded[0], padded[1], padded[2], padded[3]]) as usize;
-    if original_len > padded.len() - 4 {
+    if 4 + original_len > padded.len() {
         return None;
     }
-    let start = padded.len() - original_len;
-    Some(padded[start..].to_vec())
+    Some(padded[4..4 + original_len].to_vec())
 }
 
 #[cfg(test)]

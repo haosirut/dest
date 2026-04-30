@@ -111,6 +111,39 @@ impl ReplicationManager {
     }
 }
 
+/// Action to take when evaluating node recovery.
+#[derive(Debug, PartialEq, Clone)]
+pub enum RecoveryAction {
+    /// Node not reliable enough — keep the extra replica.
+    KeepExtra,
+    /// Node recovered and an extra replica exists — safe to remove it.
+    RemoveExtra,
+    /// Node recovered but no extra replica — nothing to do.
+    NoAction,
+}
+
+/// Decide whether a shard should be proactively migrated to a closer candidate.
+///
+/// Returns `true` when the candidate's ping is strictly better than 70% of the
+/// current keeper's ping (0.7× threshold).
+pub fn maybe_optimize_shard_placement(current_keeper_ping_ms: f64, candidate_ping_ms: f64) -> bool {
+    candidate_ping_ms < 0.7 * current_keeper_ping_ms
+}
+
+/// Decide which recovery action to take for a node that was previously degraded.
+///
+/// - `rating_pay` — reliability rating in [0, 1].
+/// - `has_extra_replica` — whether an extra replica is still held for this node.
+pub fn check_node_recovery_action(rating_pay: f64, has_extra_replica: bool) -> RecoveryAction {
+    if rating_pay < 0.8 {
+        RecoveryAction::KeepExtra
+    } else if has_extra_replica {
+        RecoveryAction::RemoveExtra
+    } else {
+        RecoveryAction::NoAction
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +224,39 @@ mod tests {
         manager.register_chunk("chunk1");
         manager.unregister_chunk("chunk1");
         assert!(!manager.is_replicated("chunk1"));
+    }
+
+    // ── Proactive shard-placement tests ─────────────────────────────
+
+    #[test]
+    fn test_proactive_move_low_ping() {
+        // candidate 50 ms vs current 100 ms → 50 < 0.7 * 100 = 70 → should move
+        assert!(maybe_optimize_shard_placement(100.0, 50.0));
+    }
+
+    #[test]
+    fn test_proactive_move_threshold_exact() {
+        // candidate 70 ms vs current 100 ms → 70 is NOT < 70 → should NOT move
+        assert!(!maybe_optimize_shard_placement(100.0, 70.0));
+    }
+
+    // ── Node recovery-action tests ──────────────────────────────────
+
+    #[test]
+    fn test_recovery_high_rating_removes_extra_replica() {
+        // rating 0.9 ≥ 0.8 and extra replica present → RemoveExtra
+        assert_eq!(
+            check_node_recovery_action(0.9, true),
+            RecoveryAction::RemoveExtra,
+        );
+    }
+
+    #[test]
+    fn test_recovery_low_rating_keeps_replica() {
+        // rating 0.5 < 0.8 → KeepExtra regardless of has_extra_replica
+        assert_eq!(
+            check_node_recovery_action(0.5, true),
+            RecoveryAction::KeepExtra,
+        );
     }
 }

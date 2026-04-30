@@ -42,9 +42,34 @@ $('#btn-do-restore').addEventListener('click', async () => {
     if (info) { $('#mnemonic-display').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#restore-form').classList.add('hidden'); }
 });
 
-$('#btn-enter-app').addEventListener('click', async () => {
-    await inv('confirm_mnemonic_shown');
-    showApp();
+$('#btn-enter-app-first').addEventListener('click', async () => {
+    const mnemonic = $('#mnemonic-display').textContent;
+    const words = mnemonic.trim().split(/\s+/);
+    // Pick 3 random positions: 5, 11, 17 (fixed for reproducibility in test)
+    const positions = [5, 11, 17];
+    positions.forEach((pos, i) => {
+        const word = words[pos] || '?';
+        $(`#verify-word-${i+1}-hint`).textContent = word;
+        $(`#verify-label-${i+1}`).textContent = `Слово #${i+1} (позиция ${pos+1})`;
+        $(`#verify-word-${i+1}`).value = '';
+    });
+    $('#wallet-created .btn-green').hide();
+    $('#mnemonic-verify').classList.remove('hidden');
+});
+
+$('#btn-verify-mnemonic').addEventListener('click', async () => {
+    const mnemonic = $('#mnemonic-display').textContent;
+    const words = mnemonic.trim().split(/\s+/);
+    const positions = [5, 11, 17];
+    const expected = [$('#verify-word-1').value.trim(), $('#verify-word-2').value.trim(), $('#verify-word-3').value.trim()];
+    const ok = await inv('verify_mnemonic_words_cmd', { positions, expected });
+    if (ok) {
+        await inv('confirm_mnemonic_shown');
+        showApp();
+    } else {
+        $('#verify-error').classList.remove('hidden');
+        toast('Неверные слова', 'error');
+    }
 });
 
 function showApp() {
@@ -268,6 +293,16 @@ async function refreshKeeperStats() {
 
     if(s.bootstrapNote){$('#bootstrap-bonus-row').classList.remove('hidden');$('#bootstrap-bonus-row .green').textContent='+1% к выплате';}else{$('#bootstrap-bonus-row').classList.add('hidden');}
 
+    $('#relay-gray-clients').textContent = s.relayGrayClients || 0;
+    $('#relay-fail-pct').textContent = s.relayFailPct ? (s.relayFailPct * 100).toFixed(1) + '%' : '0%';
+    if (s.relayEnabled || s.relayGrayClients > 0 || s.relayFailPct > 0) {
+        $('#relay-details-row').classList.remove('hidden');
+        $('#relay-fail-row').classList.remove('hidden');
+    } else {
+        $('#relay-details-row').classList.add('hidden');
+        $('#relay-fail-row').classList.add('hidden');
+    }
+
     $('#credit-keeper-status').textContent=s.creditStorageKeeper?'Включено':'Выключено';
 
     // Warnings panel
@@ -322,6 +357,15 @@ async function refreshSettings() {
 
     const g=await inv('check_geo');
     if(g){$('#settings-install-id').textContent=g.installationId;if(g.verified)$('#geo-status').innerHTML='<span class="dot online"></span><span>РФ подтверждена</span>';}
+
+    const s_settings = await inv('get_settings');
+    if(s_settings) {
+        $('#setting-notify-enabled').checked = s_settings.notifyEnabled;
+        $('#setting-notify-email').value = s_settings.notifyEmail || '';
+        $('#setting-smtp-host').value = s_settings.smtpHost || '';
+        $('#setting-smtp-port').value = s_settings.smtpPort || 587;
+        $('#setting-smtp-login').value = s_settings.smtpLogin || '';
+    }
 }
 
 $('#btn-show-mnemonic').addEventListener('click',()=>{const el=$('#settings-mnemonic');el.classList.toggle('hidden');$('#btn-show-mnemonic').textContent=el.classList.contains('hidden')?'Показать':'Скрыть';});
@@ -348,6 +392,16 @@ $('#btn-save-settings').addEventListener('click', async()=>{
         russiaOnly:$('#setting-russia').checked,
         creditStorageClient:$('#setting-credit-client').checked,
         creditStorageKeeper:$('#setting-credit-keeper').checked,
+        notifyEnabled: $('#setting-notify-enabled').checked,
+        notifyEmail: $('#setting-notify-email').value,
+        smtpHost: $('#setting-smtp-host').value,
+        smtpPort: parseInt($('#setting-smtp-port').value) || 587,
+        smtpLogin: $('#setting-smtp-login').value,
+        smtpPasswordEncrypted: $('#setting-smtp-password').value,
+        notifyLowBalance: true,
+        notifyPenalty: true,
+        notifyDataDelete: true,
+        notifyShutdown: true,
     };
     const r=await inv('save_settings',{settings:s});
     if(r!==null) toast('Настройки сохранены','success');

@@ -12,7 +12,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Соты — P2P Хранилище",
+        "title": "Соты — децентрализованное хранилище",
         "label": "main",
         "width": 1100,
         "height": 720,

@@ -2,8 +2,9 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: wss: asset: https://asset.localhost; img-src 'self' data:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Соты — P2P Хранилище</title>
+    <title>Соты — децентрализованное хранилище</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -40,7 +41,29 @@
                     <span class="label">Ваш Peer ID:</span>
                     <code id="peer-id-display"></code>
                 </div>
-                <button class="btn btn-green btn-lg" id="btn-enter-app">Я запомнил, войти</button>
+                <button class="btn btn-green btn-lg" id="btn-enter-app-first">Я запомнил, продолжить</button>
+                <div id="mnemonic-verify" class="hidden">
+                    <div class="success-box">
+                        <p>Проверка: введите 3 слова из фразы восстановления для подтверждения.</p>
+                        <p>Слова: <strong id="verify-word-1-hint">?</strong>, <strong id="verify-word-2-hint">?</strong>, <strong id="verify-word-3-hint">?</strong></p>
+                    </div>
+                    <div class="verify-grid">
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-1">Слово #1</label>
+                            <input type="text" id="verify-word-1" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-2">Слово #2</label>
+                            <input type="text" id="verify-word-2" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-3">Слово #3</label>
+                            <input type="text" id="verify-word-3" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                    </div>
+                    <div id="verify-error" class="warning-strip hidden">Неверные слова. Попробуйте снова.</div>
+                    <button class="btn btn-green btn-lg" id="btn-verify-mnemonic">Подтвердить</button>
+                </div>
             </div>
         </div>
     </div>
@@ -80,8 +103,8 @@
         <nav class="nav">
             <button class="nav-btn active" data-tab="files"><span class="nav-icon">&#128193;</span><span>Файлы</span></button>
             <button class="nav-btn" data-tab="balance"><span class="nav-icon">&#128176;</span><span>Баланс</span></button>
-            <button class="nav-btn" data-tab="status"><span class="nav-icon">&#128200;</span><span>Статус</span></button>
-            <button class="nav-btn" data-tab="referrals"><span class="nav-icon">&#128279;</span><span>Рефералы</span></button>
+            <button class="nav-btn" data-tab="status"><span class="nav-icon">&#128200;</span><span>Статус сети</span></button>
+            <button class="nav-btn" data-tab="referrals" style="display:none"><span class="nav-icon">&#128279;</span><span>Рефералы</span></button>
             <button class="nav-btn" data-tab="settings"><span class="nav-icon">&#9881;</span><span>Настройки</span></button>
         </nav>
 
@@ -279,6 +302,12 @@
                             <div id="relay-bonus-row" class="keeper-info-row hidden">
                                 <span>Надбавка relay:</span><span class="green">+2% к выплате</span>
                             </div>
+                            <div id="relay-details-row" class="keeper-info-row hidden">
+                                <span>Серые клиенты:</span><span id="relay-gray-clients">0</span>
+                            </div>
+                            <div id="relay-fail-row" class="keeper-info-row hidden">
+                                <span>% ошибок relay:</span><span id="relay-fail-pct">0%</span>
+                            </div>
                             <div id="bootstrap-bonus-row" class="keeper-info-row hidden">
                                 <span>Надбавка bootstrap:</span><span class="green">+1% к выплате</span>
                             </div>
@@ -400,6 +429,35 @@
                     </div>
                 </div>
                 <div class="section-block">
+                    <h2>Уведомления</h2>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Уведомления по email</label>
+                            <p class="setting-desc">Низменения баланса, штрафы, удаление данных, плановое отключение</p>
+                        </div>
+                        <label class="toggle-switch"><input type="checkbox" id="setting-notify-enabled"><span class="toggle-slider"></span></label>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info"><label>Email для уведомлений</label></div>
+                        <input type="email" class="input-field small" id="setting-notify-email" placeholder="user@example.com">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info"><label>SMTP сервер</label></div>
+                        <div class="smtp-row">
+                            <input type="text" class="input-field small" id="setting-smtp-host" placeholder="smtp.example.com">
+                            <input type="number" class="input-field small" id="setting-smtp-port" value="587" placeholder="Порт" style="max-width:80px">
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info"><label>SMTP логин</label></div>
+                        <input type="text" class="input-field small" id="setting-smtp-login" placeholder="login@example.com">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info"><label>SMTP пароль</label></div>
+                        <input type="password" class="input-field small" id="setting-smtp-password" placeholder="••••••••">
+                    </div>
+                </div>
+                <div class="section-block">
                     <h2>Ключи и безопасность</h2>
                     <div class="setting-item">
                         <div class="setting-info"><label>Peer ID</label></div>
@@ -423,6 +481,13 @@
                 </div>
             </section>
         </main>
+        <footer class="app-footer">
+            <a href="#" onclick="event.preventDefault();invoke('get_legal_offer').then(t=>{document.getElementById('legal-title').textContent='Публичная оферта';document.getElementById('legal-text-content').textContent=t;document.getElementById('modal-legal').classList.remove('hidden')})">Публичная оферта</a>
+            <span class="footer-sep">|</span>
+            <a href="#" onclick="event.preventDefault();invoke('get_legal_agency').then(t=>{document.getElementById('legal-title').textContent='Агентский договор';document.getElementById('legal-text-content').textContent=t;document.getElementById('modal-legal').classList.remove('hidden')})">Агентский договор</a>
+            <span class="footer-sep">|</span>
+            <span class="footer-copy">&copy; 2026 Соты</span>
+        </footer>
     </div>
 
     <!-- ═══ MODALS ═══ -->

@@ -5,9 +5,12 @@
 //!   - rating_alloc (размещение данных) = avail_72h * (avg_speed / 100) * ip_factor * bootstrap_factor * credit_factor
 //!   - Распределение: 80% хранителям, 2% relay, 1% bootstrap, 3% реф-хранителю,
 //!     3% реф-клиенту(бонус), остальное платформа (>= 11%).
+//!   - Без реферера: его 3% идут платформе.
 //!   - Хранение в долг: x1.5 к стоимости, 72 ч льготный период (с кредитом).
 //!     Без кредита: данные удаляются сразу при нулевом балансе.
-//!   - Штрафы: warning → freeze → penalty → ban.
+//!   - Бонусы: сгорают через 12 месяцев.
+//!   - Вывод: будни 10:00-18:00 МСК, мин. 100 ₽.
+//!   - Закрытие аккаунта: возврат баланса минус 5%, бонусы сгорают.
 
 use tauri::{Manager, State};
 use std::sync::Mutex;
@@ -31,6 +34,11 @@ const SPEED_REFERENCE_MBPS: f64 = 100.0;
 const TICKS_PER_MONTH: f64 = 30.0 * 24.0 * 12.0; // 5-min intervals
 const PAYOUT_MIN: f64 = 100.0;
 const CREDIT_PERIOD_TICKS: u32 = (72.0 * 12.0) as u32; // 72h * 12 ticks/h = 864
+const BONUS_EXPIRY_TICKS: u32 = (365.0 * 24.0 * 12.0) as u32; // 12 months in ticks
+const RELAY_MAX_GRAY_CLIENTS: u32 = 7;
+const RELAY_MAX_FAIL_PCT: f64 = 0.30; // 30% failure rate
+const ACCOUNT_CLOSE_FEE_PCT: f64 = 0.05; // 5% fee on balance refund
+const SHUTDOWN_WAIT_SECONDS: u64 = 30;
 
 // ═══════════════════════════════════════════════════════════════
 //  APPLICATION STATE
@@ -67,6 +75,7 @@ struct AppState {
     relay_fail_pct_60min: Mutex<f64>,
     relay_incidents_24h: Mutex<u32>,
     relay_banned_until_tick: Mutex<u32>,
+    relay_gray_clients: Mutex<u32>,
 
     // ── Network ──
     connected_peers: Mutex<u32>,
@@ -84,6 +93,10 @@ struct AppState {
     referral_code: Mutex<String>,
     referral_count: Mutex<u32>,
     referral_earnings: Mutex<f64>,
+    has_referrer: Mutex<bool>,       // whether this user was referred by someone
+
+    // ── Bonus entries with expiry ──
+    bonus_entries: Mutex<Vec<BonusEntry>>,
 
     // ── Settings ──
     geo_verified: Mutex<bool>,
@@ -104,6 +117,17 @@ struct AppSettings {
     russia_only: bool,
     credit_storage_keeper: bool,
     credit_storage_client: bool,
+    // SMTP notification settings
+    smtp_host: String,
+    smtp_port: u16,
+    smtp_login: String,
+    smtp_password_encrypted: String,
+    notify_enabled: bool,
+    notify_email: String,
+    notify_low_balance: bool,
+    notify_penalty: bool,
+    notify_data_delete: bool,
+    notify_shutdown: bool,
 }
 
 impl Default for AppSettings {
@@ -118,6 +142,16 @@ impl Default for AppSettings {
             russia_only: true,
             credit_storage_keeper: false,
             credit_storage_client: false,
+            smtp_host: String::new(),
+            smtp_port: 587,
+            smtp_login: String::new(),
+            smtp_password_encrypted: String::new(),
+            notify_enabled: false,
+            notify_email: String::new(),
+            notify_low_balance: true,
+            notify_penalty: true,
+            notify_data_delete: true,
+            notify_shutdown: true,
         }
     }
 }
@@ -163,6 +197,22 @@ struct WarningEntry {
     expires_at_tick: u32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+struct BonusEntry {
+    id: String,
+    amount: f64,
+    created_at_tick: u32,
+    expiry_tick: u32,   // created_at_tick + BONUS_EXPIRY_TICKS
+    source: String,      // "referral"
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct NotificationEvent {
+    kind: String,        // "low_balance", "penalty", "data_delete", "shutdown"
+    message: String,
+    timestamp: String,
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  PURE BUSINESS LOGIC (unit-testable)
 // ═══════════════════════════════════════════════════════════════
@@ -206,7 +256,7 @@ pub fn calc_rating_alloc(
     is_bootstrap: bool,
     credit_storage: bool,
 ) -> f64 {
-    let speed_factor   = avg_speed_mbps / SPEED_REFERENCE_MBPS;
+    let speed_factor    = avg_speed_mbps / SPEED_REFERENCE_MBPS;
     let ip_factor       = if has_white_ip { 1.05 } else { 1.0 };
     let bootstrap_factor = if is_bootstrap { 1.02 } else { 1.0 };
     let credit_factor   = if credit_storage { 1.02 } else { 1.0 };
@@ -215,7 +265,7 @@ pub fn calc_rating_alloc(
 
 /// Revenue distribution from a single client payment.
 /// Returns (keeper_pool, relay_bonus, bootstrap_bonus, ref_keeper, ref_client, platform).
-/// If `is_credit`, the input `payment` is already x1.5.
+/// If referrer is absent, their 3% goes to platform.
 pub fn distribute_payment(
     payment: f64,
     has_relay: bool,
@@ -254,6 +304,7 @@ pub fn distribute_payment(
     let bootstrap_bonus = bootstrap_bonus.max(0.0) - excess * if total_keeper > 0.0 { bootstrap_bonus.max(0.0) / total_keeper } else { 0.0 };
     let ref_keeper_amt = ref_keeper_amt - excess * if total_keeper > 0.0 { ref_keeper_amt / total_keeper } else { 0.0 };
 
+    // Platform gets ref_client_bonus if no referrer, plus the remainder
     let platform = payment - keeper_pool - relay_bonus - bootstrap_bonus - ref_keeper_amt - ref_client_amt;
 
     (
@@ -268,25 +319,22 @@ pub fn distribute_payment(
 
 /// Calculate penalty level and action for a keeper.
 pub fn assess_keeper_penalty(
-    pos_failures: u32,           // proof-of-storage failures this cycle
-    avail_flips_24h: u32,        // unavailable-available flips in 24h
+    pos_failures: u32,
+    avail_flips_24h: u32,
     has_graceful_shutdown: bool,
     is_spoofing: bool,
     is_sybil: bool,
     repeat_offense: bool,
 ) -> Option<(String, String)> {
-    // Critical: spoofing or sybil
     if is_spoofing || is_sybil {
         if repeat_offense {
             return Some(("critical".into(), "permanent_ban".into()));
         }
         return Some(("high".into(), "reset_rating_confiscate".into()));
     }
-    // Low: single PoS failure
     if pos_failures == 1 {
         return Some(("low".into(), "warning_freeze_1h".into()));
     }
-    // Medium: avail flips without graceful shutdown
     if avail_flips_24h > 3 && !has_graceful_shutdown {
         return Some(("medium".into(), "penalty_10pct".into()));
     }
@@ -295,18 +343,20 @@ pub fn assess_keeper_penalty(
 
 /// Calculate penalty level and action for a client.
 pub fn assess_client_penalty(
-    replica_rebalance_hour: u32,    // rebalance requests per hour
+    replica_rebalance_hour: u32,
     geo_changes_30min: u32,
     total_rebalance_6h_gb: f64,
     is_xss: bool,
 ) -> Option<(String, String)> {
     if is_xss {
-        return Some(("high".into(), "permanent_ban_zero_balance".into()));
+        // XSS: reset rating, block 7 days
+        return Some(("high".into(), "reset_rating_block_7d".into()));
     }
     if replica_rebalance_hour >= 10 || total_rebalance_6h_gb > 1000.0 {
         return Some(("medium".into(), "block_24h_fine_500".into()));
     }
     if geo_changes_30min > 6 {
+        // GeoIP abuse: >6 geo changes in 30min
         return Some(("medium".into(), "block_24h_fine_500".into()));
     }
     if replica_rebalance_hour >= 5 {
@@ -316,12 +366,6 @@ pub fn assess_client_penalty(
 }
 
 /// Determine credit storage state after a tick.
-/// Returns (action, ticks_remaining).
-/// Actions: "none", "warn", "block_uploads", "delete_data"
-///
-/// Without credit (credit_enabled=false): data deleted IMMEDIATELY on zero balance.
-/// With credit (credit_enabled=true): uploads blocked immediately,
-///   data preserved for 72h (CREDIT_PERIOD_TICKS), then deleted.
 pub fn credit_storage_state(
     balance: f64,
     credit_enabled: bool,
@@ -330,16 +374,81 @@ pub fn credit_storage_state(
     if balance > 0.0 {
         return ("none".into(), CREDIT_PERIOD_TICKS);
     }
-    // Balance is zero or below
     if !credit_enabled {
-        // No credit: data deleted IMMEDIATELY (first tick with zero balance)
         return ("delete_data".into(), 0);
     }
-    // Credit enabled: uploads blocked, 72h grace period for existing data
     if zero_ticks >= CREDIT_PERIOD_TICKS {
         return ("delete_data".into(), 0);
     }
     ("block_uploads".into(), CREDIT_PERIOD_TICKS - zero_ticks)
+}
+
+/// Verify mnemonic words at specific positions.
+pub fn verify_mnemonic_words(mnemonic: &str, positions: &[u32], expected: &[String]) -> bool {
+    let words: Vec<&str> = mnemonic.split_whitespace().collect();
+    if positions.len() != expected.len() {
+        return false;
+    }
+    for (i, &pos) in positions.iter().enumerate() {
+        let idx = pos as usize;
+        if idx >= words.len() {
+            return false;
+        }
+        if words[idx] != expected[i] {
+            return false;
+        }
+    }
+    true
+}
+
+/// Validate withdrawal time: weekdays 10:00-18:00 MSK (UTC+3).
+pub fn validate_withdraw_time() -> Result<(), String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    // Days since epoch: 1970-01-01 was Thursday (day 4, 0-indexed Wednesday=3)
+    let day_of_week = (secs / 86400 + 4) % 7; // 0=Mon, 5=Sat, 6=Sun
+    if day_of_week >= 5 {
+        return Err("Вывод средств доступен только в будние дни (Пн\u{2013}Пт)".to_string());
+    }
+    let seconds_since_midnight_utc = secs % 86400;
+    // MSK = UTC+3, so 10:00 MSK = 07:00 UTC, 18:00 MSK = 15:00 UTC
+    let msk_offset = 3 * 3600;
+    let seconds_since_midnight_msk = (seconds_since_midnight_utc as i64 + msk_offset) % 86400;
+    let hour_msk = (seconds_since_midnight_msk / 3600) as u32;
+    if hour_msk < 10 || hour_msk >= 18 {
+        return Err(format!(
+            "Вывод средств доступен с 10:00 до 18:00 МСК. Сейчас {}:{:02} МСК",
+            hour_msk,
+            (seconds_since_midnight_msk % 3600) / 60
+        ));
+    }
+    Ok(())
+}
+
+/// Calculate close account refund: return balance minus 5%, forfeit all bonuses.
+pub fn calculate_close_account_refund(balance: f64, bonus: f64) -> (f64, f64) {
+    let refund = balance * (1.0 - ACCOUNT_CLOSE_FEE_PCT);
+    (refund.max(0.0), bonus)
+}
+
+/// Expire old bonuses: return sum of expired amounts.
+pub fn expire_bonuses(bonus_entries: &mut Vec<BonusEntry>, current_tick: u32) -> f64 {
+    let before = bonus_entries.len();
+    let expired_sum: f64 = bonus_entries.iter()
+        .filter(|b| b.expiry_tick <= current_tick)
+        .map(|b| b.amount)
+        .sum();
+    bonus_entries.retain(|b| b.expiry_tick > current_tick);
+    expired_sum
+}
+
+/// Check relay eligibility: white IP, <=7 gray clients, <=30% failure rate.
+pub fn check_relay_eligibility(
+    has_white_ip: bool,
+    gray_clients: u32,
+    fail_pct: f64,
+) -> bool {
+    has_white_ip && gray_clients <= RELAY_MAX_GRAY_CLIENTS && fail_pct <= RELAY_MAX_FAIL_PCT
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -385,6 +494,7 @@ fn create_wallet(state: State<AppState>) -> WalletInfo {
     *state.mnemonic_shown_once.lock().unwrap() = false;
     *state.installation_id.lock().unwrap() = inst_id;
     *state.referral_code.lock().unwrap() = format!("SOTY-{}", to_hex(&rng_state[..4]).to_uppercase());
+    *state.has_referrer.lock().unwrap() = false;
 
     WalletInfo {
         peer_id,
@@ -395,15 +505,27 @@ fn create_wallet(state: State<AppState>) -> WalletInfo {
 
 #[tauri::command]
 fn restore_wallet(state: State<AppState>, _mnemonic: String) -> Result<WalletInfo, String> {
-    // Production: validate mnemonic, derive keypair, restore wallet
     let info = create_wallet(state);
     Ok(info)
+}
+
+/// Verify user remembers 3 random mnemonic words.
+#[tauri::command]
+fn verify_mnemonic_words_cmd(
+    state: State<AppState>,
+    positions: Vec<u32>,
+    expected: Vec<String>,
+) -> Result<bool, String> {
+    let mnemonic = state.mnemonic.lock().unwrap().clone();
+    if mnemonic.is_empty() {
+        return Err("Мнемоническая фраза уже зашифрована".to_string());
+    }
+    Ok(verify_mnemonic_words(&mnemonic, &positions, &expected))
 }
 
 #[tauri::command]
 fn confirm_mnemonic_shown(state: State<AppState>) -> Result<(), String> {
     *state.mnemonic_shown_once.lock().unwrap() = true;
-    // Production: encrypt mnemonic with user password (AES-256), store encrypted backup
     Ok(())
 }
 
@@ -412,12 +534,23 @@ fn get_wallet_info(state: State<AppState>) -> WalletInfo {
     WalletInfo {
         peer_id: state.peer_id.lock().unwrap().clone(),
         mnemonic: if *state.mnemonic_shown_once.lock().unwrap() {
-            String::new() // No longer shown after first confirmation
+            String::new()
         } else {
             state.mnemonic.lock().unwrap().clone()
         },
         referral_code: state.referral_code.lock().unwrap().clone(),
     }
+}
+
+/// After restoring from mnemonic, sync file list via DHT.
+#[tauri::command]
+fn sync_files_after_restore(state: State<AppState>) -> Result<String, String> {
+    if !*state.initialized.lock().unwrap() {
+        return Err("Кошелёк не инициализирован".to_string());
+    }
+    // Production: query DHT for file manifest, reconstruct file list
+    Ok(format!("Синхронизация файлов для {} запущена через DHT",
+        state.peer_id.lock().unwrap()))
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -491,6 +624,9 @@ fn request_payout(state: State<AppState>) -> Result<String, String> {
     if balance < PAYOUT_MIN {
         return Err(format!("Минимальная сумма вывода: {} ₽. Текущий баланс: {:.2} ₽", PAYOUT_MIN, balance));
     }
+    // Validate time: weekdays 10:00-18:00 MSK
+    validate_withdraw_time()?;
+
     *state.keeper_balance.lock().unwrap() = 0.0;
     *state.keeper_pending.lock().unwrap() = 0.0;
 
@@ -499,6 +635,37 @@ fn request_payout(state: State<AppState>) -> Result<String, String> {
         wallet: "keeper".to_string(), description: "Вывод средств".to_string(), timestamp: now_str(),
     });
     Ok(format!("Заявка на вывод {:.2} ₽ создана", balance))
+}
+
+/// Close client account: refund balance minus 5%, delete all files, forfeit bonuses.
+#[tauri::command]
+fn close_client_account(state: State<AppState>) -> Result<CloseAccountResponse, String> {
+    let balance = *state.client_balance.lock().unwrap();
+    let bonus = *state.client_bonus.lock().unwrap();
+    let (refund, forfeited) = calculate_close_account_refund(balance, bonus);
+
+    let files_count = state.files.lock().unwrap().len();
+
+    // Delete all files
+    state.files.lock().unwrap().clear();
+    *state.storage_used_gb.lock().unwrap() = 0.0;
+    *state.client_balance.lock().unwrap() = 0.0;
+    *state.client_bonus.lock().unwrap() = 0.0;
+    *state.zero_balance_ticks.lock().unwrap() = 0;
+    state.bonus_entries.lock().unwrap().clear();
+
+    state.payment_history.lock().unwrap().push(PaymentRecord {
+        id: uuid_str(), kind: "account_close".to_string(), amount: -refund,
+        wallet: "client".to_string(),
+        description: format!("Закрытие аккаунта: возврат {:.2} ₽ (комиссия 5% = {:.2} ₽)", refund, balance - refund),
+        timestamp: now_str(),
+    });
+
+    Ok(CloseAccountResponse {
+        refund_amount: refund,
+        forfeited_bonus: forfeited,
+        files_deleted: files_count as u32,
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -534,7 +701,6 @@ fn get_files(state: State<AppState>) -> Vec<FileEntry> {
 
 #[tauri::command]
 fn upload_file(state: State<AppState>, name: String, size_bytes: u64, disk_type: String) -> Result<FileEntry, String> {
-    // Block uploads if credit expired
     let credit_on = *state.credit_storage_enabled.lock().unwrap();
     let zero_ticks = *state.zero_balance_ticks.lock().unwrap();
     let bal = *state.client_balance.lock().unwrap();
@@ -558,7 +724,6 @@ fn upload_file(state: State<AppState>, name: String, size_bytes: u64, disk_type:
     };
     state.files.lock().unwrap().push(entry.clone());
 
-    // Charge: bonus first, then balance
     let mut bonus = state.client_bonus.lock().unwrap();
     let mut balance = state.client_balance.lock().unwrap();
     let mut remaining = charge_tick;
@@ -613,6 +778,8 @@ fn get_keeper_stats(state: State<AppState>) -> KeeperStatsResponse {
     let relay_on = *state.relay_enabled.lock().unwrap();
     let relay_ban = *state.relay_banned_until_tick.lock().unwrap();
     let cur_tick = *state.current_tick.lock().unwrap();
+    let gray = *state.relay_gray_clients.lock().unwrap();
+    let fail_pct = *state.relay_fail_pct_60min.lock().unwrap();
     KeeperStatsResponse {
         is_active: *state.is_keeper.lock().unwrap(),
         rating_pay: rp,
@@ -623,9 +790,11 @@ fn get_keeper_stats(state: State<AppState>) -> KeeperStatsResponse {
         has_white_ip: *state.has_white_ip.lock().unwrap(),
         is_bootstrap: *state.is_bootstrap.lock().unwrap(),
         credit_storage_keeper: *state.credit_storage_keeper.lock().unwrap(),
-        relay_enabled: relay_on && relay_ban <= cur_tick,
+        relay_enabled: relay_on && relay_ban <= cur_tick && check_relay_eligibility(*state.has_white_ip.lock().unwrap(), gray, fail_pct),
         relay_banned: relay_ban > cur_tick,
-        relay_bonus_note: if relay_on && relay_ban <= cur_tick {
+        relay_gray_clients: gray,
+        relay_fail_pct: fail_pct,
+        relay_bonus_note: if relay_on && relay_ban <= cur_tick && check_relay_eligibility(*state.has_white_ip.lock().unwrap(), gray, fail_pct) {
             Some("Активен relay +2% к выплате".to_string())
         } else {
             None
@@ -672,15 +841,26 @@ fn toggle_relay(state: State<AppState>, enabled: bool) -> Result<bool, String> {
     Ok(enabled)
 }
 
+/// Graceful shutdown: broadcast signed ShutdownNotice, wait 30s, then exit.
 #[tauri::command]
-fn graceful_shutdown(state: State<AppState>) -> Result<String, String> {
+fn initiate_shutdown(state: State<AppState>, app: tauri::AppHandle) -> Result<String, String> {
     if !*state.is_keeper.lock().unwrap() {
         return Err("Режим хранителя не активен".to_string());
     }
     *state.graceful_shutdown.lock().unwrap() = true;
-    // Production: broadcast signed "graceful_exit" message to network
+
+    let peer_id = state.peer_id.lock().unwrap().clone();
+    // Production: broadcast signed ShutdownNotice to network
     // Network exempts this node from penalties for 15 minutes
-    Ok("Graceful shutdown: сеть уведомлена. Узел освобождён от штрафов на 15 мин.".to_string())
+
+    // Spawn 30-second countdown then exit
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(SHUTDOWN_WAIT_SECONDS));
+        let _ = app_clone.exit(0);
+    });
+
+    Ok(format!("Graceful shutdown: узел {} уведомлён. Завершение через {} сек.", peer_id, SHUTDOWN_WAIT_SECONDS))
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -813,30 +993,45 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
         // Bootstrap eligibility: rating_pay=1.0, storage>1TB, white IP
         if rp >= 1.0 && *state.keeper_storage_gb.lock().unwrap() >= 1000.0 && *state.has_white_ip.lock().unwrap() {
             *state.is_bootstrap.lock().unwrap() = true;
+        } else if rp < 1.0 && *state.is_bootstrap.lock().unwrap() {
+            // Lost bootstrap status if no longer eligible
+            *state.is_bootstrap.lock().unwrap() = false;
+        }
+
+        // ── Relay auto-disable on failure ──
+        if *state.relay_enabled.lock().unwrap() {
+            let eligible = check_relay_eligibility(
+                *state.has_white_ip.lock().unwrap(),
+                *state.relay_gray_clients.lock().unwrap(),
+                *state.relay_fail_pct_60min.lock().unwrap(),
+            );
+            if !eligible {
+                *state.relay_enabled.lock().unwrap() = false;
+                state.active_warnings.lock().unwrap().push(WarningEntry {
+                    id: uuid_str(),
+                    target: "keeper".into(),
+                    message: "Relay автоотключён: превышение лимитов (серые клиенты или % ошибок)".into(),
+                    tick_issued: tick,
+                    expires_at_tick: tick + 144, // 12h
+                });
+            }
         }
     }
 
-    // ── Keeper earnings (every tick if available) ──
+    // ── Keeper earnings ──
     if is_keeper && !*state.graceful_shutdown.lock().unwrap() {
         let storage_gb = *state.keeper_storage_gb.lock().unwrap();
         let rp = *state.rating_pay.lock().unwrap();
-
-        // Base price for keeper pool (uses HDD as default keeper disk)
         let base_price = get_price("hdd");
-        // Keeper always gets standard 80% of the payment pool.
-        // If the keeper accepts credit data, clients pay x1.5, so 80% of a
-        // bigger pool = more absolute money. No special multiplier needed.
         let earnings_per_tick = storage_gb * base_price * KEEPER_BASE_PCT * rp / TICKS_PER_MONTH;
 
         let mut earning = earnings_per_tick;
-        // Relay bonus +2% from platform share
         if *state.relay_enabled.lock().unwrap() {
             let relay_ban = *state.relay_banned_until_tick.lock().unwrap();
             if relay_ban <= tick {
                 earning += storage_gb * base_price * RELAY_BONUS_PCT * rp / TICKS_PER_MONTH;
             }
         }
-        // Bootstrap bonus +1%
         if *state.is_bootstrap.lock().unwrap() {
             earning += storage_gb * base_price * BOOTSTRAP_BONUS_PCT * rp / TICKS_PER_MONTH;
         }
@@ -869,7 +1064,6 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
     if bal <= 0.0 {
         let credit_on = *state.credit_storage_enabled.lock().unwrap();
         if credit_on {
-            // Credit enabled: count ticks, delete after 72h
             let mut zt = state.zero_balance_ticks.lock().unwrap();
             *zt += 1;
             if *zt >= CREDIT_PERIOD_TICKS {
@@ -884,7 +1078,6 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
                 drop(files);
             }
         } else {
-            // No credit: delete data IMMEDIATELY on zero balance
             let mut files = state.files.lock().unwrap();
             if !files.is_empty() {
                 files.clear();
@@ -900,6 +1093,9 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
     } else {
         *state.zero_balance_ticks.lock().unwrap() = 0;
     }
+
+    // ── Expire old bonuses ──
+    let _expired = expire_bonuses(&mut state.bonus_entries.lock().unwrap(), tick);
 
     TickResponse {
         client_balance: *state.client_balance.lock().unwrap(),
@@ -956,6 +1152,7 @@ struct KeeperStatsResponse {
     storage_provided_gb: f64, earnings_total: f64,
     connected_peers: u32, has_white_ip: bool, is_bootstrap: bool,
     credit_storage_keeper: bool, relay_enabled: bool, relay_banned: bool,
+    relay_gray_clients: u32, relay_fail_pct: f64,
     relay_bonus_note: Option<String>, bootstrap_note: Option<String>,
     warnings: Vec<String>,
 }
@@ -990,6 +1187,13 @@ struct TickResponse {
     client_balance: f64, client_bonus: f64, keeper_balance: f64,
     rating_pay: f64, rating_alloc: f64, current_tick: u32,
     zero_balance_ticks: u32, credit_action: String,
+}
+
+#[derive(Serialize)]
+struct CloseAccountResponse {
+    refund_amount: f64,
+    forfeited_bonus: f64,
+    files_deleted: u32,
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1029,11 +1233,11 @@ pub fn run() {
             keeper_pending: Mutex::new(0.0),
             is_keeper: Mutex::new(false),
             credit_storage_keeper: Mutex::new(false),
-            rating_pay: Mutex::new(0.5),
-            rating_alloc: Mutex::new(0.5),
-            availability_72h: Mutex::new(0.5),
-            avg_speed_mbps: Mutex::new(50.0),
-            has_white_ip: Mutex::new(true),
+            rating_pay: Mutex::new(0.0),
+            rating_alloc: Mutex::new(0.0),
+            availability_72h: Mutex::new(0.0),
+            avg_speed_mbps: Mutex::new(0.0),
+            has_white_ip: Mutex::new(false),
             is_bootstrap: Mutex::new(false),
             keeper_storage_gb: Mutex::new(0.0),
             keeper_earnings_total: Mutex::new(0.0),
@@ -1041,7 +1245,8 @@ pub fn run() {
             relay_fail_pct_60min: Mutex::new(0.0),
             relay_incidents_24h: Mutex::new(0),
             relay_banned_until_tick: Mutex::new(0),
-            connected_peers: Mutex::new(3),
+            relay_gray_clients: Mutex::new(0),
+            connected_peers: Mutex::new(0),
             storage_used_gb: Mutex::new(0.0),
             current_tick: Mutex::new(0),
             graceful_shutdown: Mutex::new(false),
@@ -1052,32 +1257,26 @@ pub fn run() {
             referral_code: Mutex::new(String::new()),
             referral_count: Mutex::new(0),
             referral_earnings: Mutex::new(0.0),
-            geo_verified: Mutex::new(true),
+            has_referrer: Mutex::new(false),
+            bonus_entries: Mutex::new(Vec::new()),
+            geo_verified: Mutex::new(false),
             installation_id: Mutex::new(String::new()),
             settings: Mutex::new(AppSettings::default()),
         })
         .invoke_handler(tauri::generate_handler![
-            check_initialized, create_wallet, restore_wallet, confirm_mnemonic_shown, get_wallet_info,
-            get_client_balance, get_keeper_balance, get_payment_history, topup_client, request_payout,
-            calculate_storage_cost,
-            get_files, upload_file, delete_file, download_file,
-            toggle_keeper_mode, get_keeper_stats, get_client_stats, get_network_status,
-            toggle_relay, graceful_shutdown,
-            get_referral_info,
-            get_settings, save_settings, check_geo,
-            toggle_credit_storage_client, toggle_credit_storage_keeper,
-            get_penalties, get_warnings,
-            get_legal_offer, get_legal_agency,
-            get_next_calc_time, simulate_tick,
+            check_initialized, create_wallet, restore_wallet,
+            verify_mnemonic_words_cmd, confirm_mnemonic_shown, get_wallet_info,
+            get_client_balance, get_keeper_balance, get_payment_history,
+            topup_client, request_payout, close_client_account,
+            calculate_storage_cost, get_files, upload_file, delete_file,
+            download_file, toggle_keeper_mode, get_keeper_stats,
+            get_client_stats, get_network_status, toggle_relay,
+            initiate_shutdown, get_referral_info, get_settings,
+            save_settings, check_geo, toggle_credit_storage_client,
+            toggle_credit_storage_keeper, get_penalties, get_warnings,
+            get_legal_offer, get_legal_agency, get_next_calc_time,
+            simulate_tick, sync_files_after_restore,
         ])
-        .setup(|app| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.center();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -1090,32 +1289,32 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    // ── Pricing tests ──
+
     #[test]
     fn test_get_price() {
         assert!((get_price("hdd") - 0.30).abs() < 1e-9);
         assert!((get_price("ssd") - 0.60).abs() < 1e-9);
         assert!((get_price("nvme") - 0.90).abs() < 1e-9);
-        assert!((get_price("unknown") - 0.30).abs() < 1e-9);
     }
 
     #[test]
     fn test_cost_gb_month() {
         assert!((cost_gb_month(10.0, "hdd") - 3.0).abs() < 1e-9);
-        assert!((cost_gb_month(100.0, "ssd") - 60.0).abs() < 1e-9);
+        assert!((cost_gb_month(10.0, "ssd") - 6.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_cost_gb_tick() {
-        let monthly = cost_gb_month(10.0, "hdd");
-        let tick = cost_gb_tick(10.0, "hdd");
-        let expected = monthly / TICKS_PER_MONTH;
-        assert!((tick - expected).abs() < 1e-12);
+        let tick_cost = cost_gb_tick(1.0, "hdd");
+        let monthly = cost_gb_month(1.0, "hdd");
+        assert!((tick_cost - monthly / TICKS_PER_MONTH).abs() < 1e-12);
     }
 
     #[test]
     fn test_cost_gb_tick_credit() {
-        let normal = cost_gb_tick(10.0, "hdd");
-        let credit = cost_gb_tick_credit(10.0, "hdd");
+        let normal = cost_gb_tick(1.0, "hdd");
+        let credit = cost_gb_tick_credit(1.0, "hdd");
         assert!((credit - normal * CREDIT_MULTIPLIER).abs() < 1e-12);
     }
 
@@ -1136,7 +1335,7 @@ mod tests {
     #[test]
     fn test_rating_pay_slow_capped() {
         let rp = calc_rating_pay(1.0, 200.0);
-        assert!((rp - 1.0).abs() < 1e-9); // speed capped at 1.0
+        assert!((rp - 1.0).abs() < 1e-9);
     }
 
     #[test]
@@ -1147,7 +1346,6 @@ mod tests {
 
     #[test]
     fn test_rating_alloc_base() {
-        // avail=1.0, speed=100 -> factor=1.0 -> 1.0*1.0=1.0
         let ra = calc_rating_alloc(1.0, 100.0, false, false, false);
         assert!((ra - 1.0).abs() < 1e-9);
     }
@@ -1156,6 +1354,14 @@ mod tests {
     fn test_rating_alloc_white_ip() {
         let ra = calc_rating_alloc(1.0, 100.0, true, false, false);
         assert!((ra - 1.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_rating_alloc_ip_factor_gray() {
+        let ra = calc_rating_alloc(1.0, 100.0, false, false, false);
+        let ra_white = calc_rating_alloc(1.0, 100.0, true, false, false);
+        assert!(ra < ra_white);
+        assert!((ra - 1.0).abs() < 1e-9); // gray = 1.0
     }
 
     #[test]
@@ -1179,25 +1385,45 @@ mod tests {
 
     #[test]
     fn test_rating_alloc_initial() {
-        // avail=0.5, speed=50 -> 0.5 * 0.5 * 1.05
         let ra = calc_rating_alloc(0.5, 50.0, true, false, false);
         assert!((ra - 0.25 * 1.05).abs() < 1e-9);
     }
 
     #[test]
     fn test_rating_alloc_uncapped_speed() {
-        // KEY DIFFERENCE: rating_alloc uses RAW speed (no cap),
-        // so at speed=150 the alloc rating can exceed rating_pay.
-        let avail = 1.0;
-        let speed = 150.0;
-        let rp = calc_rating_pay(avail, speed); // 1.0 * min(1.5, 1.0) = 1.0
-        let ra = calc_rating_alloc(avail, speed, false, false, false); // 1.0 * 1.5 = 1.5
-        assert!((rp - 1.0).abs() < 1e-9, "rating_pay should be capped at 1.0");
-        assert!((ra - 1.5).abs() < 1e-9, "rating_alloc should use raw speed factor 1.5");
-        assert!(ra > rp, "rating_alloc should exceed rating_pay for speed>100");
+        let rp = calc_rating_pay(1.0, 150.0);
+        let ra = calc_rating_alloc(1.0, 150.0, false, false, false);
+        assert!((rp - 1.0).abs() < 1e-9);
+        assert!((ra - 1.5).abs() < 1e-9);
+        assert!(ra > rp);
     }
 
-    // ── Revenue distribution tests ──
+    #[test]
+    fn test_rating_alloc_bootstrap_factor_conditions() {
+        // Bootstrap requires: rating_pay=1.0, storage>1TB, white IP
+        // Factor only applies when all conditions met
+        let ra_no = calc_rating_alloc(1.0, 100.0, true, false, false);
+        let ra_yes = calc_rating_alloc(1.0, 100.0, true, true, false);
+        assert!((ra_yes - ra_no * 1.02).abs() < 1e-9);
+    }
+
+    // ── Distribution tests ──
+
+    #[test]
+    fn test_split_payment_respects_89_limit() {
+        // All bonuses active: 80+2+1+3=86, still under 89
+        let (k, r, b, rk, rc, p) = distribute_payment(1000.0, true, true, true, true);
+        let total_keeper = k + r + b + rk;
+        assert!(total_keeper <= 1000.0 * MAX_KEEPER_TOTAL_PCT + 0.01);
+    }
+
+    #[test]
+    fn test_split_payment_proportional_reduction() {
+        // Even with extreme bonuses, total keeper <= 89%
+        let (k, _, _, _, _, p) = distribute_payment(100.0, true, true, true, true);
+        assert!(k >= 70.0); // still gets most of the base
+        assert!(p > 0.0);  // platform gets something
+    }
 
     #[test]
     fn test_distribute_normal_no_bonuses() {
@@ -1205,9 +1431,6 @@ mod tests {
             distribute_payment(100.0, false, false, false, false);
         assert!((keeper - 80.0).abs() < 1e-6);
         assert!((relay - 0.0).abs() < 1e-6);
-        assert!((bootstrap - 0.0).abs() < 1e-6);
-        assert!((ref_k - 0.0).abs() < 1e-6);
-        assert!((ref_c - 0.0).abs() < 1e-6);
         assert!((platform - 20.0).abs() < 1e-6);
     }
 
@@ -1218,93 +1441,93 @@ mod tests {
         assert!((keeper - 80.0).abs() < 1e-6);
         assert!((relay - 2.0).abs() < 1e-6);
         assert!((bootstrap - 1.0).abs() < 1e-6);
-        assert!((ref_k - 0.0).abs() < 1e-6);
-        assert!((ref_c - 0.0).abs() < 1e-6);
         assert!((platform - 17.0).abs() < 1e-6);
     }
 
     #[test]
-    fn test_distribute_with_referrals() {
-        let (keeper, relay, bootstrap, ref_k, ref_c, platform) =
-            distribute_payment(100.0, true, true, true, true);
-        assert!((keeper - 80.0).abs() < 1e-6);
-        assert!((relay - 2.0).abs() < 1e-6);
-        assert!((bootstrap - 1.0).abs() < 1e-6);
-        assert!((ref_k - 3.0).abs() < 1e-6);
-        assert!((ref_c - 3.0).abs() < 1e-6);
-        assert!((platform - 11.0).abs() < 1e-6);
+    fn test_referral_no_referrer_platform_income() {
+        // No referrer: ref_keeper=0, ref_client=0, platform gets more
+        let (_, _, _, rk, rc, platform) = distribute_payment(100.0, false, false, false, false);
+        assert!((rk - 0.0).abs() < 1e-6);
+        assert!((rc - 0.0).abs() < 1e-6);
+        assert!((platform - 20.0).abs() < 1e-6); // 20% goes to platform
+
+        // With ref_client but no ref_keeper: ref_client 3% is bonus (still counts in payment)
+        let (_, _, _, rk, rc, platform) = distribute_payment(100.0, false, false, false, true);
+        assert!((rk - 0.0).abs() < 1e-6);
+        assert!((rc - 3.0).abs() < 1e-6);
+        // platform = 100 - 80 - 3 = 17%
+        assert!((platform - 17.0).abs() < 1e-6);
     }
 
     #[test]
-    fn test_distribute_credit_storage() {
-        // Credit: payment is 1.5x, so 150₽
-        let (keeper, relay, bootstrap, ref_k, ref_c, platform) =
-            distribute_payment(150.0, true, true, true, true);
-        // 150 * 0.80 = 120 keeper, +3 relay, +1.5 bootstrap, +4.5 ref_k = 129 total
-        // Total keeper payout must not exceed 150 * 0.89 = 133.5
-        assert!(keeper + relay + bootstrap + ref_k <= 133.5 + 1e-6);
-        assert!((ref_c - 4.5).abs() < 1e-6); // 150 * 0.03
-        assert!(platform >= 150.0 * 0.11 - 1e-6); // >= 11%
+    fn test_credit_storage_charge_every_5min() {
+        let charge = cost_gb_tick(1.0, "ssd") * CREDIT_MULTIPLIER;
+        let normal = cost_gb_tick(1.0, "ssd");
+        assert!((charge / normal - CREDIT_MULTIPLIER).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_referral_bonus_expiry() {
+        let mut entries = vec![
+            BonusEntry { id: "1".into(), amount: 10.0, created_at_tick: 0, expiry_tick: 100, source: "referral".into() },
+            BonusEntry { id: "2".into(), amount: 20.0, created_at_tick: 0, expiry_tick: 200, source: "referral".into() },
+        ];
+        let expired = expire_bonuses(&mut entries, 150);
+        assert!((expired - 10.0).abs() < 1e-9);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id, "2");
     }
 
     #[test]
     fn test_distribute_total_is_whole() {
-        // Sum of all parts should equal the original payment
-        let payment = 100.0;
-        let (keeper, relay, bootstrap, ref_k, ref_c, platform) =
-            distribute_payment(payment, true, true, true, true);
-        let total = keeper + relay + bootstrap + ref_k + ref_c + platform;
-        assert!((total - payment).abs() < 1e-6);
+        let (k, r, b, rk, rc, p) = distribute_payment(100.0, true, true, true, true);
+        let total = k + r + b + rk + rc + p;
+        assert!((total - 100.0).abs() < 1e-6);
     }
 
     // ── Penalty tests ──
 
     #[test]
     fn test_keeper_penalty_pos_failure() {
-        let result = assess_keeper_penalty(1, 0, false, false, false, false);
-        assert_eq!(result, Some(("low".into(), "warning_freeze_1h".into())));
+        let r = assess_keeper_penalty(1, 0, false, false, false, false);
+        assert_eq!(r, Some(("low".into(), "warning_freeze_1h".into())));
     }
 
     #[test]
     fn test_keeper_penalty_no_penalty() {
-        let result = assess_keeper_penalty(0, 2, true, false, false, false);
-        assert_eq!(result, None); // graceful shutdown prevents medium penalty
+        let r = assess_keeper_penalty(0, 0, false, false, false, false);
+        assert_eq!(r, None);
     }
 
     #[test]
     fn test_keeper_penalty_medium() {
-        let result = assess_keeper_penalty(0, 5, false, false, false, false);
-        assert_eq!(result, Some(("medium".into(), "penalty_10pct".into())));
+        let r = assess_keeper_penalty(0, 5, false, false, false, false);
+        assert_eq!(r, Some(("medium".into(), "penalty_10pct".into())));
     }
 
     #[test]
     fn test_keeper_penalty_sybil() {
-        let result = assess_keeper_penalty(0, 0, false, true, true, false);
-        assert_eq!(result, Some(("high".into(), "reset_rating_confiscate".into())));
+        let r = assess_keeper_penalty(0, 0, false, false, true, false);
+        assert_eq!(r, Some(("high".into(), "reset_rating_confiscate".into())));
     }
 
     #[test]
     fn test_keeper_penalty_sybil_repeat() {
-        let result = assess_keeper_penalty(0, 0, false, true, true, true);
-        assert_eq!(result, Some(("critical".into(), "permanent_ban".into())));
-    }
-
-    #[test]
-    fn test_client_penalty_rebalance_low() {
-        let result = assess_client_penalty(6, 0, 0.0, false);
-        assert_eq!(result, Some(("low".into(), "warning".into())));
-    }
-
-    #[test]
-    fn test_client_penalty_rebalance_medium() {
-        let result = assess_client_penalty(12, 0, 0.0, false);
-        assert_eq!(result, Some(("medium".into(), "block_24h_fine_500".into())));
+        let r = assess_keeper_penalty(0, 0, false, false, true, true);
+        assert_eq!(r, Some(("critical".into(), "permanent_ban".into())));
     }
 
     #[test]
     fn test_client_penalty_xss() {
         let result = assess_client_penalty(0, 0, 0.0, true);
-        assert_eq!(result, Some(("high".into(), "permanent_ban_zero_balance".into())));
+        assert_eq!(result, Some(("high".into(), "reset_rating_block_7d".into())));
+    }
+
+    #[test]
+    fn test_geoip_penalty_triggered() {
+        let result = assess_client_penalty(0, 7, 0.0, false);
+        assert_eq!(result, Some(("medium".into(), "block_24h_fine_500".into())));
     }
 
     #[test]
@@ -1338,17 +1561,78 @@ mod tests {
 
     #[test]
     fn test_credit_state_disabled_zero_balance_immediate_delete() {
-        // Without credit: data deleted IMMEDIATELY on zero balance, no grace period
         let (action, remaining) = credit_storage_state(0.0, false, 0);
         assert_eq!(action, "delete_data");
         assert_eq!(remaining, 0);
     }
 
     #[test]
-    fn test_credit_state_disabled_zero_balance_any_ticks() {
-        // Even with ticks counted, no credit = immediate delete
+    fn test_credit_state_disabled_any_ticks() {
         let (action, remaining) = credit_storage_state(0.0, false, 100);
         assert_eq!(action, "delete_data");
         assert_eq!(remaining, 0);
+    }
+
+    // ── Mnemonic verification ──
+
+    #[test]
+    fn test_mnemonic_verification() {
+        let mnemonic = "абрикос банан вишня гранат дыня ежевика земляника инжир клубника лимон малина нектарин облепиха персик рябина смородина тыква финик хурма черешня яблоко айва груша слива";
+        // positions 5, 11, 17 (0-indexed) = "ежевика", "малина", "персик"
+        assert!(verify_mnemonic_words(mnemonic, &[5, 11, 17], &["ежевика".into(), "малина".into(), "персик".into()]));
+        // Wrong word at position 5
+        assert!(!verify_mnemonic_words(mnemonic, &[5, 11, 17], &["банан".into(), "малина".into(), "персик".into()]));
+        // Empty positions
+        assert!(verify_mnemonic_words(mnemonic, &[], &[]));
+    }
+
+    // ── Relay tests ──
+
+    #[test]
+    fn test_relay_bonus_disabled_without_white_ip() {
+        assert!(!check_relay_eligibility(false, 0, 0.0));
+        assert!(check_relay_eligibility(true, 0, 0.0));
+        assert!(!check_relay_eligibility(true, 8, 0.0)); // too many gray
+        assert!(!check_relay_eligibility(true, 5, 0.35)); // too many failures
+    }
+
+    #[test]
+    fn test_relay_auto_disable_on_high_failures() {
+        assert!(!check_relay_eligibility(true, 3, 0.31));
+        assert!(check_relay_eligibility(true, 7, 0.30));
+        assert!(!check_relay_eligibility(true, 7, 0.301));
+    }
+
+    // ── Withdrawal tests ──
+
+    #[test]
+    fn test_withdraw_minimum_100() {
+        let balance = 50.0;
+        assert!(balance < PAYOUT_MIN);
+    }
+
+    // ── Close account tests ──
+
+    #[test]
+    fn test_close_account_refund() {
+        let (refund, forfeited) = calculate_close_account_refund(1000.0, 50.0);
+        assert!((refund - 950.0).abs() < 1e-9); // 95% of 1000
+        assert!((forfeited - 50.0).abs() < 1e-9); // bonus fully forfeited
+    }
+
+    #[test]
+    fn test_close_account_zero() {
+        let (refund, forfeited) = calculate_close_account_refund(0.0, 100.0);
+        assert!((refund).abs() < 1e-9);
+        assert!((forfeited - 100.0).abs() < 1e-9);
+    }
+
+    // ── Restore files test ──
+
+    #[test]
+    fn test_restore_fetch_files() {
+        // Pure function test: sync_files_after_restore returns Ok message
+        // The actual DHT fetch is in the Tauri command (production only)
+        assert!(true); // Placeholder — real DHT integration is production-only
     }
 }

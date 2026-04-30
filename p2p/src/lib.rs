@@ -4,6 +4,7 @@
 //! heartbeat protocol, challenge-response Proof-of-Storage, offline ledger sync.
 
 pub mod behaviour;
+pub mod bootstrap;
 pub mod challenge;
 pub mod config;
 pub mod discovery;

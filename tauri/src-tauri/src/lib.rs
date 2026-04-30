@@ -16,6 +16,8 @@ use tauri::State;
 use std::sync::Mutex;
 use serde::{Serialize, Deserialize};
 
+pub(crate) mod notifications;
+
 // ═══════════════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════════════
@@ -109,7 +111,7 @@ struct AppState {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AppSettings {
+pub(crate) struct AppSettings {
     bootstrap_nodes: Vec<String>,
     storage_limit_gb: u32,
     auto_start: bool,
@@ -670,6 +672,11 @@ fn close_client_account(state: State<AppState>) -> Result<CloseAccountResponse, 
         timestamp: now_str(),
     });
 
+    // Send notification
+    let settings = state.settings.lock().unwrap().clone();
+    let pid = state.peer_id.lock().unwrap().clone();
+    notifications::notify_data_delete(&settings, &pid, "Аккаунт закрыт пользователем");
+
     Ok(CloseAccountResponse {
         refund_amount: refund,
         forfeited_bonus: forfeited,
@@ -872,6 +879,25 @@ fn initiate_shutdown(state: State<AppState>, app: tauri::AppHandle) -> Result<St
     Ok(format!("Graceful shutdown: узел {} уведомлён. Завершение через {} сек.", peer_id, SHUTDOWN_WAIT_SECONDS))
 }
 
+/// Send shutdown notification (called separately from initiate_shutdown).
+#[tauri::command]
+fn send_shutdown_notification(state: State<AppState>) {
+    let settings = state.settings.lock().unwrap().clone();
+    let peer_id = state.peer_id.lock().unwrap().clone();
+    notifications::notify_shutdown(&settings, &peer_id, SHUTDOWN_WAIT_SECONDS);
+}
+
+/// Send low-balance notification.
+#[tauri::command]
+fn send_low_balance_notification(state: State<AppState>) {
+    let balance = *state.client_balance.lock().unwrap();
+    if balance < 10.0 && *state.storage_used_gb.lock().unwrap() > 0.0 {
+        let settings = state.settings.lock().unwrap().clone();
+        let peer_id = state.peer_id.lock().unwrap().clone();
+        notifications::notify_low_balance(&settings, &peer_id, balance);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  TAURI COMMANDS: REFERRALS
 // ═══════════════════════════════════════════════════════════════
@@ -1068,6 +1094,14 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
         *bal -= total_charge - from_bonus;
     }
 
+    // ── Low-balance notification ──
+    let bal_notify = *state.client_balance.lock().unwrap();
+    if bal_notify < 10.0 && *state.storage_used_gb.lock().unwrap() > 0.0 {
+        let settings = state.settings.lock().unwrap().clone();
+        let pid = state.peer_id.lock().unwrap().clone();
+        notifications::notify_low_balance(&settings, &pid, bal_notify);
+    }
+
     // ── Zero-balance handling ──
     let bal = *state.client_balance.lock().unwrap();
     if bal <= 0.0 {
@@ -1084,7 +1118,13 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
                     reason: "Кредитный период (72 ч) истёк".into(),
                     action: "data_deleted".into(), tick,
                 });
+                // Send notification
                 drop(files);
+                {
+                    let settings = state.settings.lock().unwrap().clone();
+                    let pid = state.peer_id.lock().unwrap().clone();
+                    notifications::notify_data_delete(&settings, &pid, "Кредитный период (72 ч) истёк");
+                }
             }
         } else {
             let mut files = state.files.lock().unwrap();
@@ -1097,6 +1137,12 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
                     action: "data_deleted".into(), tick,
                 });
                 drop(files);
+                // Send notification
+                {
+                    let settings = state.settings.lock().unwrap().clone();
+                    let pid = state.peer_id.lock().unwrap().clone();
+                    notifications::notify_data_delete(&settings, &pid, "Баланс исчерпан, кредит не подключён");
+                }
             }
         }
     } else {
@@ -1280,7 +1326,7 @@ pub fn run() {
             calculate_storage_cost, get_files, upload_file, delete_file,
             download_file, toggle_keeper_mode, get_keeper_stats,
             get_client_stats, get_network_status, toggle_relay,
-            initiate_shutdown, get_referral_info, get_settings,
+            initiate_shutdown, send_shutdown_notification, send_low_balance_notification, get_referral_info, get_settings,
             save_settings, check_geo, toggle_credit_storage_client,
             toggle_credit_storage_keeper, get_penalties, get_warnings,
             get_legal_offer, get_legal_agency, get_next_calc_time,

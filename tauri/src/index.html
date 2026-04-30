@@ -54,6 +54,31 @@
                     <button class="btn btn-outline btn-lg" id="btn-key-written">Ключ записан</button>
                     <button class="btn btn-lg btn-continue-disabled" id="btn-continue" disabled>Продолжить</button>
                 </div>
+                <div id="mnemonic-verify" class="hidden">
+                    <div class="success-box">
+                        <p>Проверка: введите 3 слова из фразы восстановления для подтверждения.</p>
+                        <p>Слова: <strong id="verify-word-1-hint">?</strong>, <strong id="verify-word-2-hint">?</strong>, <strong id="verify-word-3-hint">?</strong></p>
+                    </div>
+                    <div class="verify-grid">
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-1">Слово #1</label>
+                            <input type="text" id="verify-word-1" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-2">Слово #2</label>
+                            <input type="text" id="verify-word-2" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-3">Слово #3</label>
+                            <input type="text" id="verify-word-3" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                    </div>
+                    <div id="verify-error" class="warning-strip hidden">Неверные слова. Попробуйте ещё раз.</div>
+                    <div class="onboarding-btns">
+                        <button class="btn btn-ghost btn-lg" id="btn-verify-cancel">Назад</button>
+                        <button class="btn btn-green btn-lg" id="btn-verify-mnemonic">Подтвердить</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -468,6 +493,7 @@
                 </div>
                 <div class="section-actions">
                     <button class="btn btn-green" id="btn-save-settings">Сохранить настройки</button>
+                    <button class="btn btn-danger" id="btn-close-account">Закрыть аккаунт</button>
                 </div>
             </section>
         </main>
@@ -536,6 +562,7 @@
     </div>
 
     <div id="toast-container"></div>
+    <script src="purify.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

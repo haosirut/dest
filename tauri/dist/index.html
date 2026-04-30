@@ -55,6 +55,18 @@
                     <button class="btn btn-lg btn-continue-disabled" id="btn-continue" disabled>Продолжить</button>
                 </div>
             </div>
+            <!-- Mnemonic Verification Modal -->
+            <div id="verify-modal" class="hidden">
+                <div class="success-box" style="max-width:500px;margin:0 auto;">
+                    <div class="security-warning">Проверка: введите 3 слова из вашей мнемонической фразы для подтверждения.</div>
+                    <div id="verify-prompts" class="verify-grid"></div>
+                    <div id="verify-error" class="hidden"></div>
+                    <div class="onboarding-btns">
+                        <button class="btn btn-green btn-lg" id="btn-verify-submit">Подтвердить</button>
+                        <button class="btn btn-ghost" id="btn-verify-cancel">Отмена</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -466,6 +478,16 @@
                         <code class="peer-id-code" id="settings-install-id">—</code>
                     </div>
                 </div>
+                <div class="section-block">
+                    <h2 style="color:var(--danger);">Аккаунт</h2>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Закрыть аккаунт</label>
+                            <p class="setting-desc">Полный возврат баланса, удаление всех файлов, сгорание бонусов. Действие необратимо.</p>
+                        </div>
+                        <button class="btn btn-danger" id="btn-close-account">Закрыть аккаунт</button>
+                    </div>
+                </div>
                 <div class="section-actions">
                     <button class="btn btn-green" id="btn-save-settings">Сохранить настройки</button>
                 </div>
@@ -536,6 +558,7 @@
     </div>
 
     <div id="toast-container"></div>
+    <script src="purify.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

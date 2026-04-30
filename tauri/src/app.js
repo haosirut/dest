@@ -9,7 +9,7 @@ const $$ = s => document.querySelectorAll(s);
 function fmtMoney(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' \u20BD'; }
 function fmtBytes(b) { if (!b) return '0 \u0411'; const u = ['\u0411','\u041A\u0411','\u041C\u0411','\u0413\u0411']; const i = Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i]; }
 function fmtGB(g) { return g<0.001?'0 \u0413\u0411': g<1?(g*1024).toFixed(1)+' \u041C\u0411': g.toFixed(2)+' \u0413\u0411'; }
-function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function esc(s) { if (typeof DOMPurify !== 'undefined') { return DOMPurify.sanitize(s); } const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
 function toast(msg, type='info') {
     const c=$('#toast-container'), el=document.createElement('div');
@@ -79,8 +79,54 @@ $('#btn-key-written').addEventListener('click', () => {
 
 $('#btn-continue').addEventListener('click', async () => {
     if ($('#btn-continue').disabled) return;
-    await inv('confirm_mnemonic_shown');
-    showApp();
+    // Show mnemonic verification modal with 3 random words
+    const mnemonic = $('#mnemonic-text').textContent.trim();
+    const words = mnemonic.split(/\s+/);
+    const positions = [
+        Math.floor(Math.random() * 24),
+        Math.floor(Math.random() * 24),
+        Math.floor(Math.random() * 24)
+    ];
+    // Deduplicate positions
+    const uniquePositions = [...new Set(positions)];
+    while (uniquePositions.length < 3) {
+        uniquePositions.push(Math.floor(Math.random() * 24));
+    }
+    uniquePositions.forEach((pos, i) => {
+        const word = words[pos] || '?';
+        $(`#verify-word-${i+1}-hint`).textContent = word;
+        $(`#verify-label-${i+1}`).textContent = `Слово #${i+1} (позиция ${pos+1})`;
+        $(`#verify-word-${i+1}`).value = '';
+    });
+    $('#verify-error').classList.add('hidden');
+    $('#mnemonic-verify').classList.remove('hidden');
+    // Hide the key-display and buttons behind it
+    $('.onboarding-btns').first().classList.add('hidden');
+    // Store positions for verification
+    window._verifyPositions = uniquePositions;
+});
+
+$('#btn-verify-mnemonic').addEventListener('click', async () => {
+    const positions = window._verifyPositions || [0, 1, 2];
+    const expected = [
+        $('#verify-word-1').value.trim(),
+        $('#verify-word-2').value.trim(),
+        $('#verify-word-3').value.trim()
+    ];
+    const ok = await inv('verify_mnemonic_words_cmd', { positions, expected });
+    if (ok) {
+        await inv('confirm_mnemonic_shown');
+        showApp();
+    } else {
+        $('#verify-error').classList.remove('hidden');
+        toast('Неверные слова', 'error');
+    }
+});
+
+$('#btn-verify-cancel').addEventListener('click', () => {
+    $('#mnemonic-verify').classList.add('hidden');
+    $('.onboarding-btns').first().classList.remove('hidden');
+    window._verifyPositions = null;
 });
 
 function showApp() {
@@ -451,6 +497,18 @@ setInterval(()=>{if(state.initialized)refreshClientStats();},15000);
     if(text) $('#agreement-text-content').textContent=text;
 })();
 
+// ─── Close account ────────────────────────────────────────
+
+$('#btn-close-account').addEventListener('click', async () => {
+    if (!confirm('Вы уверены? Все файлы будут удалены, бонусы сгорят. Остаток средств вернётся на вашу карту.')) return;
+    const r = await inv('close_client_account');
+    if (r) {
+        toast(`Аккаунт закрыт. Возврат: ${r.refundAmount.toFixed(2)} \u20BD.`, 'success');
+        $('#app-main').classList.add('hidden');
+        $('#onboarding').classList.remove('hidden');
+        state.initialized = false;
+    }
+});
 // ─── Init ────────────────────────────────────────────────────
 
 init();

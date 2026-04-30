@@ -9,7 +9,7 @@ const $$ = s => document.querySelectorAll(s);
 function fmtMoney(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' \u20BD'; }
 function fmtBytes(b) { if (!b) return '0 \u0411'; const u = ['\u0411','\u041A\u0411','\u041C\u0411','\u0413\u0411']; const i = Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i]; }
 function fmtGB(g) { return g<0.001?'0 \u0413\u0411': g<1?(g*1024).toFixed(1)+' \u041C\u0411': g.toFixed(2)+' \u0413\u0411'; }
-function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function esc(s) { return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(s) : s; }
 
 function toast(msg, type='info') {
     const c=$('#toast-container'), el=document.createElement('div');
@@ -79,8 +79,58 @@ $('#btn-key-written').addEventListener('click', () => {
 
 $('#btn-continue').addEventListener('click', async () => {
     if ($('#btn-continue').disabled) return;
-    await inv('confirm_mnemonic_shown');
-    showApp();
+    // Show mnemonic verification modal
+    const mnemonic = $('#mnemonic-text').textContent.trim();
+    if (!mnemonic) { showApp(); return; }
+    const words = mnemonic.split(/\s+/);
+    if (words.length < 3) { showApp(); return; }
+    // Pick 3 random positions
+    const positions = [];
+    const usedIdx = new Set();
+    while (positions.length < 3) {
+        const idx = Math.floor(Math.random() * words.length);
+        if (!usedIdx.has(idx)) { usedIdx.add(idx); positions.push(idx); }
+    }
+    // Show verification modal
+    $('#wallet-created').classList.add('hidden');
+    const prompts = $('#verify-prompts');
+    prompts.innerHTML = positions.map((pos, i) => `
+            <div class="input-group">
+                <label class="input-label">Слово #${pos + 1}</label>
+                <input type="text" class="input-field verify-input" data-pos="${pos}" placeholder="Введите слово..." autocomplete="off">
+            </div>`).join('');
+    $('#verify-error').classList.add('hidden');
+    $('#verify-modal').classList.remove('hidden');
+    // Store expected answers
+    window._verifyPositions = positions;
+    window._verifyExpected = positions.map(p => words[p]);
+});
+
+$('#btn-verify-submit').addEventListener('click', async () => {
+    const inputs = document.querySelectorAll('.verify-input');
+    const answers = [];
+    const positions = [];
+    for (const inp of inputs) {
+        answers.push(inp.value.trim().toLowerCase());
+        positions.push(parseInt(inp.dataset.pos));
+    }
+    const r = await inv('verify_mnemonic_words_cmd', { positions, expected: window._verifyExpected });
+    if (r === true) {
+        $('#verify-modal').classList.add('hidden');
+        await inv('confirm_mnemonic_shown');
+        showApp();
+    } else {
+        const errEl = $('#verify-error');
+        errEl.textContent = 'Неверные слова. Проверьте фразу и попробуйте снова.';
+        errEl.classList.remove('hidden');
+        for (const inp of inputs) { inp.value = ''; inp.style.borderColor = 'var(--danger)'; }
+        setTimeout(() => { for (const inp of inputs) { inp.style.borderColor = ''; } }, 2000);
+    }
+});
+
+$('#btn-verify-cancel').addEventListener('click', () => {
+    $('#verify-modal').classList.add('hidden');
+    $('#wallet-created').classList.remove('hidden');
 });
 
 function showApp() {
@@ -443,6 +493,18 @@ async function onTick() {
 // ─── Periodic Refresh ───────────────────────────────────────
 
 setInterval(()=>{if(state.initialized)refreshClientStats();},15000);
+
+// ─── Close Account ───────────────────────────────────────────
+
+$('#btn-close-account').addEventListener('click', async () => {
+    if (!confirm('Вы уверены? Все файлы будут удалены, бонусы сгорят. Баланс будет возвращён полностью.')) return;
+    if (!confirm('Подтвердите закрытие аккаунта. Это действие необратимо.')) return;
+    const r = await inv('close_client_account');
+    if (r) {
+        toast(`Аккаунт закрыт. Возврат: ${fmtMoney(r.refundAmount)}. Удалено файлов: ${r.filesDeleted}`, 'success');
+        await refreshAll();
+    }
+});
 
 // ─── Agreement text loader ──────────────────────────────────
 

@@ -372,18 +372,18 @@
                     <div class="setting-item">
                         <div class="setting-info">
                             <label>Хранение в долг — клиент</label>
-                            <p class="setting-desc">При нулевом балансе данные сохраняются 72 ч (стоимость x1.5).</p>
+                            <p class="setting-desc">При нулевом балансе загрузки блокируются, данные сохраняются 72 ч (стоимость x1.5). Без кредита — данные удаляются сразу.</p>
                         </div>
                         <label class="toggle-switch"><input type="checkbox" id="setting-credit-client"><span class="toggle-slider"></span></label>
                     </div>
                     <div id="credit-client-terms" class="credit-terms hidden">
-                        При нулевом балансе загрузки блокируются. Данные удаляются безвозвратно через 72 часа. Стоимость умножается на 1.5.
+                        При нулевом балансе загрузки блокируются. Без кредита данные удаляются сразу. С кредитом — через 72 часа. Стоимость умножается на 1.5.
                         <button class="btn btn-ghost btn-sm" id="btn-view-offer">Подробнее в оферте</button>
                     </div>
                     <div class="setting-item">
                         <div class="setting-info">
                             <label>Кредитное хранение — хранитель</label>
-                            <p class="setting-desc">Принимать данные клиентов с хранением в долг (базовые 80% от x1.5).</p>
+                            <p class="setting-desc">Принимать данные клиентов с хранением в долг. Ставка та же (80%), но пул больше из-за x1.5 от клиента.</p>
                         </div>
                         <label class="toggle-switch"><input type="checkbox" id="setting-credit-keeper"><span class="toggle-slider"></span></label>
                     </div>

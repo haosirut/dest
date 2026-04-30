@@ -2,10 +2,11 @@
 //!
 //! Business model:
 //!   - rating_pay  (выплаты хранителям) = avail_72h * min(avg_speed / 100, 1.0)
-//!   - rating_alloc (размещение данных) = rating_pay * ip_factor * bootstrap_factor * credit_factor
+//!   - rating_alloc (размещение данных) = avail_72h * (avg_speed / 100) * ip_factor * bootstrap_factor * credit_factor
 //!   - Распределение: 80% хранителям, 2% relay, 1% bootstrap, 3% реф-хранителю,
 //!     3% реф-клиенту(бонус), остальное платформа (>= 11%).
-//!   - Хранение в долг: x1.5 к стоимости, 72 ч кредитный период.
+//!   - Хранение в долг: x1.5 к стоимости, 72 ч льготный период (с кредитом).
+//!     Без кредита: данные удаляются сразу при нулевом балансе.
 //!   - Штрафы: warning → freeze → penalty → ban.
 
 use tauri::{Manager, State};
@@ -196,17 +197,20 @@ pub fn calc_rating_pay(availability: f64, avg_speed_mbps: f64) -> f64 {
     availability * speed_factor
 }
 
-/// rating_alloc = rating_pay * ip_factor * bootstrap_factor * credit_factor
+/// rating_alloc = avail_72h * (avg_speed / 100) * ip_factor * bootstrap_factor * credit_factor
+/// NOTE: speed is NOT capped here (unlike rating_pay) — faster keepers get higher alloc rating.
 pub fn calc_rating_alloc(
-    rating_pay: f64,
+    availability: f64,
+    avg_speed_mbps: f64,
     has_white_ip: bool,
     is_bootstrap: bool,
     credit_storage: bool,
 ) -> f64 {
+    let speed_factor   = avg_speed_mbps / SPEED_REFERENCE_MBPS;
     let ip_factor       = if has_white_ip { 1.05 } else { 1.0 };
     let bootstrap_factor = if is_bootstrap { 1.02 } else { 1.0 };
     let credit_factor   = if credit_storage { 1.02 } else { 1.0 };
-    rating_pay * ip_factor * bootstrap_factor * credit_factor
+    availability * speed_factor * ip_factor * bootstrap_factor * credit_factor
 }
 
 /// Revenue distribution from a single client payment.
@@ -314,6 +318,10 @@ pub fn assess_client_penalty(
 /// Determine credit storage state after a tick.
 /// Returns (action, ticks_remaining).
 /// Actions: "none", "warn", "block_uploads", "delete_data"
+///
+/// Without credit (credit_enabled=false): data deleted IMMEDIATELY on zero balance.
+/// With credit (credit_enabled=true): uploads blocked immediately,
+///   data preserved for 72h (CREDIT_PERIOD_TICKS), then deleted.
 pub fn credit_storage_state(
     balance: f64,
     credit_enabled: bool,
@@ -322,21 +330,16 @@ pub fn credit_storage_state(
     if balance > 0.0 {
         return ("none".into(), CREDIT_PERIOD_TICKS);
     }
+    // Balance is zero or below
     if !credit_enabled {
-        // No credit: data deleted after CREDIT_PERIOD_TICKS
-        if zero_ticks >= CREDIT_PERIOD_TICKS {
-            return ("delete_data".into(), 0);
-        }
-        return ("warn".into(), CREDIT_PERIOD_TICKS - zero_ticks);
+        // No credit: data deleted IMMEDIATELY (first tick with zero balance)
+        return ("delete_data".into(), 0);
     }
-    // Credit enabled
+    // Credit enabled: uploads blocked, 72h grace period for existing data
     if zero_ticks >= CREDIT_PERIOD_TICKS {
         return ("delete_data".into(), 0);
     }
-    if zero_ticks > 0 {
-        return ("block_uploads".into(), CREDIT_PERIOD_TICKS - zero_ticks);
-    }
-    ("none".into(), CREDIT_PERIOD_TICKS)
+    ("block_uploads".into(), CREDIT_PERIOD_TICKS - zero_ticks)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -798,7 +801,8 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
 
         let rp = calc_rating_pay(*avail, *speed);
         let ra = calc_rating_alloc(
-            rp,
+            *avail,
+            *speed,
             *state.has_white_ip.lock().unwrap(),
             *state.is_bootstrap.lock().unwrap(),
             *state.credit_storage_keeper.lock().unwrap(),
@@ -816,13 +820,13 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
     if is_keeper && !*state.graceful_shutdown.lock().unwrap() {
         let storage_gb = *state.keeper_storage_gb.lock().unwrap();
         let rp = *state.rating_pay.lock().unwrap();
-        let credit_keeper = *state.credit_storage_keeper.lock().unwrap();
 
         // Base price for keeper pool (uses HDD as default keeper disk)
         let base_price = get_price("hdd");
-        // If credit_storage_keeper, base 80% of 1.5x = effectively 1.2x standard rate
-        let credit_mult = if credit_keeper { CREDIT_MULTIPLIER } else { 1.0 };
-        let earnings_per_tick = storage_gb * base_price * KEEPER_BASE_PCT * credit_mult * rp / TICKS_PER_MONTH;
+        // Keeper always gets standard 80% of the payment pool.
+        // If the keeper accepts credit data, clients pay x1.5, so 80% of a
+        // bigger pool = more absolute money. No special multiplier needed.
+        let earnings_per_tick = storage_gb * base_price * KEEPER_BASE_PCT * rp / TICKS_PER_MONTH;
 
         let mut earning = earnings_per_tick;
         // Relay bonus +2% from platform share
@@ -860,23 +864,38 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
         *bal -= (total_charge - from_bonus);
     }
 
-    // ── Credit storage: track zero-balance ticks ──
+    // ── Zero-balance handling ──
     let bal = *state.client_balance.lock().unwrap();
     if bal <= 0.0 {
-        let mut zt = state.zero_balance_ticks.lock().unwrap();
-        *zt += 1;
-        if *zt >= CREDIT_PERIOD_TICKS {
-            // Delete all files — credit period expired
+        let credit_on = *state.credit_storage_enabled.lock().unwrap();
+        if credit_on {
+            // Credit enabled: count ticks, delete after 72h
+            let mut zt = state.zero_balance_ticks.lock().unwrap();
+            *zt += 1;
+            if *zt >= CREDIT_PERIOD_TICKS {
+                let mut files = state.files.lock().unwrap();
+                files.clear();
+                *state.storage_used_gb.lock().unwrap() = 0.0;
+                state.penalty_log.lock().unwrap().push(PenaltyEntry {
+                    id: uuid_str(), level: "high".into(), target: "client".into(),
+                    reason: "Кредитный период (72 ч) истёк".into(),
+                    action: "data_deleted".into(), tick,
+                });
+                drop(files);
+            }
+        } else {
+            // No credit: delete data IMMEDIATELY on zero balance
             let mut files = state.files.lock().unwrap();
-            let total_gb: f64 = files.iter().map(|f| f.size_bytes as f64 / (1024.0*1024.0*1024.0)).sum();
-            files.clear();
-            *state.storage_used_gb.lock().unwrap() = 0.0;
-            state.penalty_log.lock().unwrap().push(PenaltyEntry {
-                id: uuid_str(), level: "high".into(), target: "client".into(),
-                reason: "Кредитный период истёк".into(),
-                action: "data_deleted".into(), tick,
-            });
-            drop(files);
+            if !files.is_empty() {
+                files.clear();
+                *state.storage_used_gb.lock().unwrap() = 0.0;
+                state.penalty_log.lock().unwrap().push(PenaltyEntry {
+                    id: uuid_str(), level: "high".into(), target: "client".into(),
+                    reason: "Баланс исчерпан, кредит не подключён".into(),
+                    action: "data_deleted".into(), tick,
+                });
+                drop(files);
+            }
         }
     } else {
         *state.zero_balance_ticks.lock().unwrap() = 0;
@@ -1128,45 +1147,54 @@ mod tests {
 
     #[test]
     fn test_rating_alloc_base() {
-        let rp = calc_rating_pay(1.0, 100.0);
-        let ra = calc_rating_alloc(rp, false, false, false);
-        assert!((ra - 1.0).abs() < 1e-9); // no multipliers
+        // avail=1.0, speed=100 -> factor=1.0 -> 1.0*1.0=1.0
+        let ra = calc_rating_alloc(1.0, 100.0, false, false, false);
+        assert!((ra - 1.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_rating_alloc_white_ip() {
-        let rp = calc_rating_pay(1.0, 100.0);
-        let ra = calc_rating_alloc(rp, true, false, false);
+        let ra = calc_rating_alloc(1.0, 100.0, true, false, false);
         assert!((ra - 1.05).abs() < 1e-9);
     }
 
     #[test]
     fn test_rating_alloc_bootstrap() {
-        let rp = calc_rating_pay(1.0, 100.0);
-        let ra = calc_rating_alloc(rp, false, true, false);
+        let ra = calc_rating_alloc(1.0, 100.0, false, true, false);
         assert!((ra - 1.02).abs() < 1e-9);
     }
 
     #[test]
     fn test_rating_alloc_credit() {
-        let rp = calc_rating_pay(1.0, 100.0);
-        let ra = calc_rating_alloc(rp, false, false, true);
+        let ra = calc_rating_alloc(1.0, 100.0, false, false, true);
         assert!((ra - 1.02).abs() < 1e-9);
     }
 
     #[test]
     fn test_rating_alloc_all_bonuses() {
-        let rp = calc_rating_pay(1.0, 100.0);
-        let ra = calc_rating_alloc(rp, true, true, true);
+        let ra = calc_rating_alloc(1.0, 100.0, true, true, true);
         let expected = 1.0 * 1.05 * 1.02 * 1.02;
         assert!((ra - expected).abs() < 1e-9);
     }
 
     #[test]
     fn test_rating_alloc_initial() {
-        let rp = calc_rating_pay(0.5, 50.0); // 0.5 * 0.5 = 0.25
-        let ra = calc_rating_alloc(rp, true, false, false);
+        // avail=0.5, speed=50 -> 0.5 * 0.5 * 1.05
+        let ra = calc_rating_alloc(0.5, 50.0, true, false, false);
         assert!((ra - 0.25 * 1.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_rating_alloc_uncapped_speed() {
+        // KEY DIFFERENCE: rating_alloc uses RAW speed (no cap),
+        // so at speed=150 the alloc rating can exceed rating_pay.
+        let avail = 1.0;
+        let speed = 150.0;
+        let rp = calc_rating_pay(avail, speed); // 1.0 * min(1.5, 1.0) = 1.0
+        let ra = calc_rating_alloc(avail, speed, false, false, false); // 1.0 * 1.5 = 1.5
+        assert!((rp - 1.0).abs() < 1e-9, "rating_pay should be capped at 1.0");
+        assert!((ra - 1.5).abs() < 1e-9, "rating_alloc should use raw speed factor 1.5");
+        assert!(ra > rp, "rating_alloc should exceed rating_pay for speed>100");
     }
 
     // ── Revenue distribution tests ──
@@ -1309,15 +1337,18 @@ mod tests {
     }
 
     #[test]
-    fn test_credit_state_disabled_zero_balance() {
-        let (action, remaining) = credit_storage_state(0.0, false, 100);
-        assert_eq!(action, "warn");
-        assert_eq!(remaining, CREDIT_PERIOD_TICKS - 100);
+    fn test_credit_state_disabled_zero_balance_immediate_delete() {
+        // Without credit: data deleted IMMEDIATELY on zero balance, no grace period
+        let (action, remaining) = credit_storage_state(0.0, false, 0);
+        assert_eq!(action, "delete_data");
+        assert_eq!(remaining, 0);
     }
 
     #[test]
-    fn test_credit_state_disabled_expired() {
-        let (action, _) = credit_storage_state(0.0, false, CREDIT_PERIOD_TICKS);
+    fn test_credit_state_disabled_zero_balance_any_ticks() {
+        // Even with ticks counted, no credit = immediate delete
+        let (action, remaining) = credit_storage_state(0.0, false, 100);
         assert_eq!(action, "delete_data");
+        assert_eq!(remaining, 0);
     }
 }

@@ -79,7 +79,7 @@ mod tests {
                 })
                 .collect(),
             proofs: vec![],
-            root: tree.root(),
+            root: tree.root().to_hex().to_string(),
         };
 
         assert!(ChallengeGenerator::verify_proof(&challenge, &proof));
@@ -96,7 +96,7 @@ mod tests {
             leaf_indices: vec![],
             leaves: vec![],
             proofs: vec![],
-            root: blake3::hash(b""),
+            root: blake3::hash(b"").to_hex().to_string(),
         };
 
         assert!(!ChallengeGenerator::verify_proof(&challenge, &proof));

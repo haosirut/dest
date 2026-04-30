@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- ═══════ ONBOARDING SCREEN ═══════ -->
+    <!-- ═══ ONBOARDING ═══ -->
     <div id="onboarding" class="screen">
         <div class="onboarding-container">
             <div class="logo-hex">
@@ -20,39 +20,32 @@
             </div>
             <h1 class="onboarding-title">Соты</h1>
             <p class="onboarding-subtitle">Децентрализованное P2P хранилище</p>
-
             <div id="onboard-actions">
-                <button class="btn btn-green btn-lg" id="btn-create-wallet">
-                    Создать новый ключ
-                </button>
-                <button class="btn btn-outline btn-lg" id="btn-restore-wallet">
-                    Восстановить из фразы
-                </button>
+                <button class="btn btn-green btn-lg" id="btn-create-wallet">Создать новый ключ</button>
+                <button class="btn btn-outline btn-lg" id="btn-restore-wallet">Восстановить из фразы</button>
             </div>
-
             <div id="restore-form" class="hidden">
                 <label class="input-label">Фраза восстановления (24 слова)</label>
                 <textarea id="mnemonic-input" class="input-field textarea" rows="3" placeholder="Введите слова через пробел..."></textarea>
                 <button class="btn btn-green btn-lg" id="btn-do-restore">Восстановить</button>
                 <button class="btn btn-ghost" id="btn-cancel-restore">Отмена</button>
             </div>
-
             <div id="wallet-created" class="hidden">
                 <div class="success-box">
                     <div class="success-icon">&#10003;</div>
-                    <p>Ключ создан! Сохраните фразу восстановления.</p>
+                    <p>Ключ создан! Запомните фразу восстановления — она больше не будет отображена.</p>
                 </div>
                 <div class="mnemonic-box" id="mnemonic-display"></div>
                 <div class="peer-id-box">
                     <span class="label">Ваш Peer ID:</span>
                     <code id="peer-id-display"></code>
                 </div>
-                <button class="btn btn-green btn-lg" id="btn-enter-app">Войти в приложение</button>
+                <button class="btn btn-green btn-lg" id="btn-enter-app">Я запомнил, войти</button>
             </div>
         </div>
     </div>
 
-    <!-- ═══════ MAIN APP ═══════ -->
+    <!-- ═══ MAIN APP ═══ -->
     <div id="app-main" class="screen hidden">
         <header class="header">
             <div class="header-left">
@@ -66,6 +59,13 @@
                 <span class="version">v0.1.0</span>
             </div>
             <div class="header-right">
+                <div class="warning-badge hidden" id="low-balance-badge">
+                    <span class="warning-icon">!</span>
+                    <span>Низкий баланс</span>
+                </div>
+                <div class="credit-badge hidden" id="credit-period-badge">
+                    <span>Кредит: <span id="credit-timer">72:00</span></span>
+                </div>
                 <div class="timer-badge" id="next-calc-timer">
                     <span class="timer-icon">&#9201;</span>
                     <span id="timer-text">05:00</span>
@@ -78,26 +78,11 @@
         </header>
 
         <nav class="nav">
-            <button class="nav-btn active" data-tab="files">
-                <span class="nav-icon">&#128193;</span>
-                <span>Файлы</span>
-            </button>
-            <button class="nav-btn" data-tab="balance">
-                <span class="nav-icon">&#128176;</span>
-                <span>Баланс</span>
-            </button>
-            <button class="nav-btn" data-tab="status">
-                <span class="nav-icon">&#128200;</span>
-                <span>Статус</span>
-            </button>
-            <button class="nav-btn" data-tab="referrals">
-                <span class="nav-icon">&#128279;</span>
-                <span>Рефералы</span>
-            </button>
-            <button class="nav-btn" data-tab="settings">
-                <span class="nav-icon">&#9881;</span>
-                <span>Настройки</span>
-            </button>
+            <button class="nav-btn active" data-tab="files"><span class="nav-icon">&#128193;</span><span>Файлы</span></button>
+            <button class="nav-btn" data-tab="balance"><span class="nav-icon">&#128176;</span><span>Баланс</span></button>
+            <button class="nav-btn" data-tab="status"><span class="nav-icon">&#128200;</span><span>Статус</span></button>
+            <button class="nav-btn" data-tab="referrals"><span class="nav-icon">&#128279;</span><span>Рефералы</span></button>
+            <button class="nav-btn" data-tab="settings"><span class="nav-icon">&#9881;</span><span>Настройки</span></button>
         </nav>
 
         <main class="content">
@@ -107,13 +92,15 @@
                     <h2>Мои файлы</h2>
                     <div class="tab-header-actions">
                         <select id="disk-type-select" class="select-field">
-                            <option value="hdd">HDD — 0.30 ₽/ГБ</option>
-                            <option value="ssd">SSD — 0.60 ₽/ГБ</option>
-                            <option value="nvme">NVMe — 0.90 ₽/ГБ</option>
+                            <option value="hdd">HDD — 0.30 &#8381;/ГБ</option>
+                            <option value="ssd">SSD — 0.60 &#8381;/ГБ</option>
+                            <option value="nvme">NVMe — 0.90 &#8381;/ГБ</option>
                         </select>
                     </div>
                 </div>
-
+                <div id="credit-upload-warning" class="warning-strip hidden">
+                    Загрузки заблокированы: нулевой баланс. Пополните в течение кредитного периода.
+                </div>
                 <div class="upload-area" id="drop-zone">
                     <div class="upload-icon">
                         <svg viewBox="0 0 64 64" width="64" height="64">
@@ -123,22 +110,17 @@
                         </svg>
                     </div>
                     <p class="upload-text">Перетащите файлы сюда</p>
-                    <p class="upload-subtext">или нажмите для выбора. Репликация x4 включена автоматически.</p>
+                    <p class="upload-subtext">Репликация x4 включена автоматически. Хранение в долг: <span id="credit-mult-label">x1.0</span></p>
                     <input type="file" id="file-input" multiple hidden>
                     <button class="btn btn-green" id="upload-btn">Выбрать файлы</button>
                 </div>
-
                 <div id="file-list" class="file-list">
-                    <div class="empty-state" id="files-empty">
-                        <p>Файлы отсутствуют</p>
-                        <p class="empty-hint">Загрузите файлы, чтобы начать хранение</p>
-                    </div>
+                    <div class="empty-state"><p>Файлы отсутствуют</p><p class="empty-hint">Загрузите файлы, чтобы начать хранение</p></div>
                 </div>
             </section>
 
             <!-- ═══ TAB: BALANCE ═══ -->
             <section id="tab-balance" class="tab">
-                <!-- Dual Wallets -->
                 <div class="wallets-grid">
                     <div class="wallet-card">
                         <div class="wallet-header">
@@ -147,17 +129,16 @@
                         </div>
                         <div class="wallet-balance">
                             <span class="balance-amount" id="client-balance">0.00</span>
-                            <span class="balance-currency">₽</span>
+                            <span class="balance-currency">&#8381;</span>
                         </div>
                         <div class="wallet-bonus">
-                            Бонусный баланс: <span id="client-bonus">0.00</span> ₽
+                            Бонусный баланс: <span id="client-bonus">0.00</span> &#8381;
                             <span class="bonus-note">(не выводится, сгорает через 12 мес.)</span>
                         </div>
                         <div class="wallet-actions">
                             <button class="btn btn-green" id="btn-topup">Пополнить</button>
                         </div>
                     </div>
-
                     <div class="wallet-card">
                         <div class="wallet-header">
                             <h3>Кошелёк хранителя</h3>
@@ -165,12 +146,10 @@
                         </div>
                         <div class="wallet-balance">
                             <span class="balance-amount" id="keeper-balance">0.00</span>
-                            <span class="balance-currency">₽</span>
+                            <span class="balance-currency">&#8381;</span>
                         </div>
-                        <div class="wallet-info-row">
-                            К выводу: <span id="keeper-pending">0.00</span> ₽
-                        </div>
-                        <div class="wallet-note" id="payout-note">Активируйте режим хранителя для получения дохода</div>
+                        <div class="wallet-info-row">К выводу: <span id="keeper-pending">0.00</span> &#8381;</div>
+                        <div class="wallet-note" id="payout-note">Активируйте режим хранителя</div>
                         <div class="wallet-actions">
                             <button class="btn btn-orange" id="btn-payout" disabled>Вывести</button>
                         </div>
@@ -200,82 +179,65 @@
                                     </select>
                                 </div>
                             </div>
+                            <div class="input-group">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="calc-credit-toggle">
+                                    <span class="toggle-slider"></span>
+                                    <span class="toggle-label">Хранение в долг (x1.5)</span>
+                                </label>
+                            </div>
                         </div>
                         <div class="calc-results">
                             <div class="calc-result-item main">
                                 <span class="calc-label">Стоимость в месяц</span>
-                                <span class="calc-value" id="calc-monthly">3.00 ₽</span>
+                                <span class="calc-value" id="calc-monthly">3.00 &#8381;</span>
                             </div>
                             <div class="calc-result-item">
                                 <span class="calc-label">Стоимость за 5 минут</span>
-                                <span class="calc-value small" id="calc-5min">~0.00002 ₽</span>
+                                <span class="calc-value small" id="calc-5min">~0.00002 &#8381;</span>
                             </div>
                             <div class="calc-result-item">
-                                <span class="calc-label">Репликация</span>
-                                <span class="calc-value small">x4 (включена)</span>
+                                <span class="calc-label">Репликация / Множитель</span>
+                                <span class="calc-value small" id="calc-repl-mult">x4 / x1.0</span>
                             </div>
                             <div class="calc-comparison">
                                 <span class="calc-label">Сравнение за месяц:</span>
-                                <div class="comparison-row">
-                                    <span>HDD:</span><span id="cmp-hdd">3.00 ₽</span>
-                                </div>
-                                <div class="comparison-row">
-                                    <span>SSD:</span><span id="cmp-ssd">6.00 ₽</span>
-                                </div>
-                                <div class="comparison-row">
-                                    <span>NVMe:</span><span id="cmp-nvme">9.00 ₽</span>
-                                </div>
+                                <div class="comparison-row"><span>HDD:</span><span id="cmp-hdd">3.00 &#8381;</span></div>
+                                <div class="comparison-row"><span>SSD:</span><span id="cmp-ssd">6.00 &#8381;</span></div>
+                                <div class="comparison-row"><span>NVMe:</span><span id="cmp-nvme">9.00 &#8381;</span></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Payment Distribution -->
+                <!-- Distribution -->
                 <div class="section-block">
                     <h2>Распределение платежа</h2>
                     <div class="distribution-bars">
-                        <div class="dist-row">
-                            <span class="dist-label">Хранители</span>
-                            <div class="dist-bar"><div class="dist-fill green" style="width:80%"></div></div>
-                            <span class="dist-pct">80%</span>
-                        </div>
-                        <div class="dist-row">
-                            <span class="dist-label">Relay-узлы</span>
-                            <div class="dist-bar"><div class="dist-fill green" style="width:3%"></div></div>
-                            <span class="dist-pct">3%</span>
-                        </div>
-                        <div class="dist-row">
-                            <span class="dist-label">Реферал (хранитель)</span>
-                            <div class="dist-bar"><div class="dist-fill green" style="width:3%"></div></div>
-                            <span class="dist-pct">3%</span>
-                        </div>
-                        <div class="dist-row">
-                            <span class="dist-label">Реферал (клиент)</span>
-                            <div class="dist-bar"><div class="dist-fill orange" style="width:3%"></div></div>
-                            <span class="dist-pct">3%</span>
-                        </div>
-                        <div class="dist-row">
-                            <span class="dist-label">Платформа</span>
-                            <div class="dist-bar"><div class="dist-fill orange" style="width:11%"></div></div>
-                            <span class="dist-pct">~11%</span>
-                        </div>
+                        <div class="dist-row"><span class="dist-label">Хранители</span><div class="dist-bar"><div class="dist-fill green" style="width:80%"></div></div><span class="dist-pct">80%</span></div>
+                        <div class="dist-row"><span class="dist-label">Relay-узлы</span><div class="dist-bar"><div class="dist-fill green" style="width:2%"></div></div><span class="dist-pct">2%</span></div>
+                        <div class="dist-row"><span class="dist-label">Bootstrap-узлы</span><div class="dist-bar"><div class="dist-fill green" style="width:1%"></div></div><span class="dist-pct">1%</span></div>
+                        <div class="dist-row"><span class="dist-label">Реферал (хранитель)</span><div class="dist-bar"><div class="dist-fill green" style="width:3%"></div></div><span class="dist-pct">3%</span></div>
+                        <div class="dist-row"><span class="dist-label">Реферал (клиент-бонус)</span><div class="dist-bar"><div class="dist-fill orange" style="width:3%"></div></div><span class="dist-pct">3%</span></div>
+                        <div class="dist-row"><span class="dist-label">Платформа</span><div class="dist-bar"><div class="dist-fill orange" style="width:11%"></div></div><span class="dist-pct">&ge;11%</span></div>
                     </div>
+                    <div class="dist-note">Максимальная сумма выплат хранителям: 89% от платежа. Relay и bootstrap бонусы выплачиваются из доли платформы.</div>
                 </div>
 
-                <!-- Payment History -->
+                <!-- History -->
                 <div class="section-block">
                     <h2>История операций</h2>
                     <div class="history-list" id="payment-history">
-                        <div class="empty-state">
-                            <p>Операций пока нет</p>
-                        </div>
+                        <div class="empty-state"><p>Операций пока нет</p></div>
                     </div>
                 </div>
             </section>
 
             <!-- ═══ TAB: STATUS ═══ -->
             <section id="tab-status" class="tab">
-                <!-- Keeper Stats -->
+                <!-- Warnings panel -->
+                <div id="warnings-panel" class="warnings-panel hidden"></div>
+
                 <div class="section-block">
                     <div class="section-header">
                         <h2>Хранитель</h2>
@@ -285,88 +247,73 @@
                             <span class="toggle-label">Режим хранителя</span>
                         </label>
                     </div>
-
                     <div id="keeper-panel" class="keeper-panel inactive">
-                        <div class="stats-grid-3">
+                        <div class="stats-grid-4">
                             <div class="stat-card">
-                                <div class="stat-label">Рейтинг</div>
-                                <div class="stat-value green" id="keeper-rating">0.50</div>
-                                <div class="stat-hint">Максимум 1.0 за 3 дня</div>
+                                <div class="stat-label">Рейтинг выплат</div>
+                                <div class="stat-value green" id="keeper-rating-pay">0.50</div>
+                                <div class="stat-hint">rating_pay</div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-label">Предоставлено места</div>
+                                <div class="stat-label">Рейтинг размещения</div>
+                                <div class="stat-value" id="keeper-rating-alloc">0.50</div>
+                                <div class="stat-hint">rating_alloc</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Место</div>
                                 <div class="stat-value" id="keeper-storage">0 ГБ</div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-label">Общий доход</div>
-                                <div class="stat-value green" id="keeper-earnings">0.00 ₽</div>
+                                <div class="stat-label">Доход</div>
+                                <div class="stat-value green" id="keeper-earnings">0.00 &#8381;</div>
                             </div>
                         </div>
-
                         <div class="keeper-subsection">
-                            <div class="keeper-info-row">
-                                <span>Подключено узлов:</span>
-                                <span id="keeper-peers">3</span>
-                            </div>
+                            <div class="keeper-info-row"><span>Белый IP:</span><span id="white-ip-status">Да</span></div>
+                            <div class="keeper-info-row"><span>Bootstrap:</span><span id="bootstrap-status">Нет</span></div>
                             <div class="keeper-info-row">
                                 <span>Relay:</span>
                                 <span id="relay-status">Выключен</span>
                                 <button class="btn btn-sm btn-outline" id="btn-toggle-relay">Включить</button>
                             </div>
                             <div id="relay-bonus-row" class="keeper-info-row hidden">
-                                <span>Надбавка relay:</span>
-                                <span class="green">+3% к выплате</span>
+                                <span>Надбавка relay:</span><span class="green">+2% к выплате</span>
                             </div>
-                            <div class="keeper-note">
-                                Доход зависит от скорости и стабильности подключения. Проверка каждые 5 минут.
+                            <div id="bootstrap-bonus-row" class="keeper-info-row hidden">
+                                <span>Надбавка bootstrap:</span><span class="green">+1% к выплате</span>
+                            </div>
+                            <div class="keeper-info-row">
+                                <span>Кредитное хранение:</span>
+                                <span id="credit-keeper-status">Выключено</span>
                             </div>
                         </div>
-
-                        <!-- Rating Progress -->
                         <div class="rating-bar-container">
-                            <div class="rating-label">Прогресс рейтинга</div>
-                            <div class="rating-bar">
-                                <div class="rating-fill" id="rating-fill" style="width:50%"></div>
-                            </div>
-                            <div class="rating-targets">
-                                <span>0</span>
-                                <span>0.5</span>
-                                <span>0.8</span>
-                                <span>1.0</span>
-                            </div>
+                            <div class="rating-label">rating_pay (выплаты)</div>
+                            <div class="rating-bar"><div class="rating-fill" id="rating-fill-pay" style="width:50%"></div></div>
+                            <div class="rating-targets"><span>0</span><span>0.5</span><span>0.8</span><span>1.0</span></div>
+                        </div>
+                        <div class="keeper-actions-row">
+                            <button class="btn btn-outline" id="btn-graceful-shutdown">
+                                <span class="shutdown-icon">&#9211;</span> Graceful Shutdown
+                            </button>
+                            <button class="btn btn-ghost btn-sm" id="btn-view-agency">Агентский договор</button>
                         </div>
                     </div>
-
                     <div id="keeper-inactive-msg" class="inactive-msg">
-                        <p>Режим хранителя отключён. Включите для предоставления дискового пространства и получения дохода.</p>
+                        <p>Режим хранителя отключён.</p>
                     </div>
                 </div>
 
-                <!-- Client Stats -->
                 <div class="section-block">
                     <h2>Клиент</h2>
                     <div class="stats-grid-3">
-                        <div class="stat-card">
-                            <div class="stat-label">Занято места</div>
-                            <div class="stat-value" id="client-storage">0 ГБ</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Файлов</div>
-                            <div class="stat-value" id="client-files">0</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Стоимость в месяц</div>
-                            <div class="stat-value orange" id="client-monthly-cost">0.00 ₽</div>
-                        </div>
+                        <div class="stat-card"><div class="stat-label">Занято места</div><div class="stat-value" id="client-storage">0 ГБ</div></div>
+                        <div class="stat-card"><div class="stat-label">Файлов</div><div class="stat-value" id="client-files">0</div></div>
+                        <div class="stat-card"><div class="stat-label">Стоимость/мес</div><div class="stat-value orange" id="client-monthly-cost">0.00 &#8381;</div></div>
                     </div>
-                    <div class="keeper-info-row">
-                        <span>Репликация данных:</span>
-                        <span>x4 (автоматическая)</span>
-                    </div>
-                    <div class="keeper-info-row">
-                        <span>Распределение по рейтингу:</span>
-                        <span>рейтинг 50%, пинг 30%, ср. пинг 20%</span>
-                    </div>
+                    <div class="keeper-info-row"><span>Репликация:</span><span>x4 (автоматическая)</span></div>
+                    <div class="keeper-info-row"><span>Хранение в долг:</span><span id="credit-client-status">Выключено</span></div>
+                    <div class="keeper-info-row"><span>Распределение данных:</span><span>рейтинг 50%, пинг 30%, ср. пинг 20%</span></div>
                 </div>
             </section>
 
@@ -375,7 +322,6 @@
                 <div class="section-block">
                     <h2>Реферальная программа</h2>
                     <p class="section-desc">Приглашайте друзей и получайте 3% от их платежей за хранение.</p>
-
                     <div class="referral-link-box">
                         <label class="input-label">Ваша реферальная ссылка</label>
                         <div class="referral-link-row">
@@ -384,24 +330,15 @@
                         </div>
                         <div class="referral-code">Код: <strong id="referral-code-display">—</strong></div>
                     </div>
-
                     <div class="stats-grid-2">
-                        <div class="stat-card">
-                            <div class="stat-label">Приглашённых</div>
-                            <div class="stat-value" id="referral-count">0</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Начислено бонусов</div>
-                            <div class="stat-value green" id="referral-earnings">0.00 ₽</div>
-                        </div>
+                        <div class="stat-card"><div class="stat-label">Приглашённых</div><div class="stat-value" id="referral-count">0</div></div>
+                        <div class="stat-card"><div class="stat-label">Начислено бонусов</div><div class="stat-value green" id="referral-earnings">0.00 &#8381;</div></div>
                     </div>
-
                     <div class="referral-rules">
                         <h3>Правила программы</h3>
                         <ul>
-                            <li>Если вы <strong>клиент</strong>: бонус зачисляется на бонусный баланс, используется только для оплаты услуг, не подлежит выводу.</li>
-                            <li>Если вы <strong>хранитель</strong>: бонус зачисляется на кошелёк хранителя, доступен к выводу.</li>
-                            <li>Бонусные баллы клиента сгорают через 12 месяцев после начисления.</li>
+                            <li>Если вы <strong>клиент</strong>: бонус на бонусный баланс, только для оплаты услуг, не выводится, сгорает через 12 мес.</li>
+                            <li>Если вы <strong>хранитель</strong>: бонус на кошелёк хранителя, доступен к выводу.</li>
                             <li>Одноуровневая программа: только прямые приглашения.</li>
                         </ul>
                     </div>
@@ -413,84 +350,74 @@
                 <div class="section-block">
                     <h2>Сеть</h2>
                     <div class="setting-item">
-                        <div class="setting-info">
-                            <label>Bootstrap-узлы</label>
-                            <p class="setting-desc">Список узлов для первичного подключения</p>
-                        </div>
+                        <div class="setting-info"><label>Bootstrap-узлы</label><p class="setting-desc">Узлы для первичного подключения</p></div>
                         <textarea id="setting-bootstrap" class="input-field textarea small" rows="2"></textarea>
                     </div>
                     <div class="setting-item">
-                        <div class="setting-info">
-                            <label>P2P порт</label>
-                            <p class="setting-desc">Порт для входящих P2P соединений</p>
-                        </div>
+                        <div class="setting-info"><label>P2P порт</label><p class="setting-desc">Входящие P2P соединения</p></div>
                         <input type="number" class="input-field small" value="9444" id="setting-port">
                     </div>
                 </div>
-
                 <div class="section-block">
                     <h2>Хранение</h2>
                     <div class="setting-item">
-                        <div class="setting-info">
-                            <label>Лимит хранилища</label>
-                            <p class="setting-desc">Максимальный объём для хранения (ГБ)</p>
-                        </div>
+                        <div class="setting-info"><label>Лимит хранилища (ГБ)</label></div>
                         <input type="number" class="input-field small" value="100" id="setting-storage-limit">
                     </div>
                     <div class="setting-item">
+                        <div class="setting-info"><label>Только РФ</label><p class="setting-desc">Хранение на узлах из России</p></div>
+                        <label class="toggle-switch"><input type="checkbox" id="setting-russia" checked><span class="toggle-slider"></span></label>
+                    </div>
+                    <!-- Credit storage toggles -->
+                    <div class="setting-item">
                         <div class="setting-info">
-                            <label>Только РФ</label>
-                            <p class="setting-desc">Разрешить хранение только на узлах из России</p>
+                            <label>Хранение в долг — клиент</label>
+                            <p class="setting-desc">При нулевом балансе данные сохраняются 72 ч (стоимость x1.5).</p>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="setting-russia" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
+                        <label class="toggle-switch"><input type="checkbox" id="setting-credit-client"><span class="toggle-slider"></span></label>
+                    </div>
+                    <div id="credit-client-terms" class="credit-terms hidden">
+                        При нулевом балансе загрузки блокируются. Данные удаляются безвозвратно через 72 часа. Стоимость умножается на 1.5.
+                        <button class="btn btn-ghost btn-sm" id="btn-view-offer">Подробнее в оферте</button>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Кредитное хранение — хранитель</label>
+                            <p class="setting-desc">Принимать данные клиентов с хранением в долг (базовые 80% от x1.5).</p>
+                        </div>
+                        <label class="toggle-switch"><input type="checkbox" id="setting-credit-keeper"><span class="toggle-slider"></span></label>
                     </div>
                 </div>
-
                 <div class="section-block">
                     <h2>Приложение</h2>
                     <div class="setting-item">
-                        <div class="setting-info">
-                            <label>Автозапуск</label>
-                            <p class="setting-desc">Запускать при старте системы</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="setting-autostart">
-                            <span class="toggle-slider"></span>
-                        </label>
+                        <div class="setting-info"><label>Автозапуск</label></div>
+                        <label class="toggle-switch"><input type="checkbox" id="setting-autostart"><span class="toggle-slider"></span></label>
                     </div>
                     <div class="setting-item">
-                        <div class="setting-info">
-                            <label>Геолокация</label>
-                            <p class="setting-desc">Проверка местоположения по IP</p>
-                        </div>
-                        <div class="geo-status" id="geo-status">
-                            <span class="dot online"></span>
-                            <span>РФ подтверждена</span>
-                        </div>
+                        <div class="setting-info"><label>Геолокация</label></div>
+                        <div class="geo-status" id="geo-status"><span class="dot online"></span><span>РФ подтверждена</span></div>
                     </div>
                 </div>
-
                 <div class="section-block">
                     <h2>Ключи и безопасность</h2>
                     <div class="setting-item">
-                        <div class="setting-info">
-                            <label>Peer ID</label>
-                        </div>
+                        <div class="setting-info"><label>Peer ID</label></div>
                         <code class="peer-id-code" id="settings-peer-id">—</code>
                     </div>
                     <div class="setting-item">
                         <div class="setting-info">
                             <label>Фраза восстановления</label>
-                            <p class="setting-desc">Ни при каких условиях не передавайте третьим лицам</p>
+                            <p class="setting-desc">Отображается однократно при создании, затем шифруется (AES-256).</p>
                         </div>
-                        <button class="btn btn-outline btn-sm" id="btn-show-mnemonic">Показать</button>
+                        <button class="btn btn-outline btn-sm" id="btn-show-mnemonic" disabled>Зашифрована</button>
                     </div>
                     <div id="settings-mnemonic" class="mnemonic-box hidden"></div>
+                    <div class="setting-item">
+                        <div class="setting-info"><label>ID установки</label></div>
+                        <code class="peer-id-code" id="settings-install-id">—</code>
+                    </div>
                 </div>
-
                 <div class="section-actions">
                     <button class="btn btn-green" id="btn-save-settings">Сохранить настройки</button>
                 </div>
@@ -498,40 +425,25 @@
         </main>
     </div>
 
-    <!-- ═══════ MODALS ═══════ -->
-    <!-- Topup Modal -->
+    <!-- ═══ MODALS ═══ -->
+    <!-- Topup -->
     <div id="modal-topup" class="modal hidden">
         <div class="modal-overlay"></div>
         <div class="modal-content">
             <h2>Пополнить клиентский кошелёк</h2>
             <p class="modal-desc">Комиссия эквайринга оплачивается явно.</p>
             <div class="input-group">
-                <label class="input-label">Сумма пополнения (₽)</label>
+                <label class="input-label">Сумма (&#8381;)</label>
                 <input type="number" id="topup-amount" class="input-field" value="500" min="10" step="10">
             </div>
             <div class="topup-methods">
-                <button class="method-btn active" data-method="card">
-                    <span class="method-name">Банковская карта</span>
-                    <span class="method-commission">+2.5% комиссия</span>
-                </button>
-                <button class="method-btn" data-method="sbp">
-                    <span class="method-name">СБП</span>
-                    <span class="method-commission">0% комиссия</span>
-                </button>
+                <button class="method-btn active" data-method="card"><span class="method-name">Банковская карта</span><span class="method-commission">+2.5%</span></button>
+                <button class="method-btn" data-method="sbp"><span class="method-name">СБП</span><span class="method-commission">0%</span></button>
             </div>
             <div class="topup-summary">
-                <div class="summary-row">
-                    <span>Сумма:</span>
-                    <span id="topup-sum">500 ₽</span>
-                </div>
-                <div class="summary-row">
-                    <span>Комиссия:</span>
-                    <span id="topup-commission">12.50 ₽</span>
-                </div>
-                <div class="summary-row total">
-                    <span>Итого:</span>
-                    <span id="topup-total">512.50 ₽</span>
-                </div>
+                <div class="summary-row"><span>Сумма:</span><span id="topup-sum">500 &#8381;</span></div>
+                <div class="summary-row"><span>Комиссия:</span><span id="topup-commission">12.50 &#8381;</span></div>
+                <div class="summary-row total"><span>Итого:</span><span id="topup-total">512.50 &#8381;</span></div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-green" id="btn-do-topup">Пополнить</button>
@@ -540,22 +452,12 @@
         </div>
     </div>
 
-    <!-- Keeper Agreement Modal -->
+    <!-- Keeper Agreement (full legal text) -->
     <div id="modal-agreement" class="modal hidden">
         <div class="modal-overlay"></div>
         <div class="modal-content wide">
             <h2>Агентский договор</h2>
-            <div class="agreement-text">
-                <p><strong>ДОГОВОР АГЕНТСКОГО ВОЗНАГРАЖДЕНИЯ</strong></p>
-                <p>1. Предмет договора: Хранитель предоставляет услуги аренды дискового пространства для хранения данных Пользователей платформы «Соты».</p>
-                <p>2. Хранитель является независимым агентом и действует от своего имени и за свой счёт. Отношения не являются трудовыми.</p>
-                <p>3. Вознаграждение хранителя составляет 80% от платежей клиентов за фактическое хранение данных на дисках хранителя. Дополнительные надбавки: relay (+3%), реферальная (+3%).</p>
-                <p>4. Начисление происходит каждые 5 минут при условии доступности узла в момент проверки.</p>
-                <p>5. Вывод средств доступен при сумме от 100 ₽, в будние дни с 10:00 до 18:00 по московскому времени.</p>
-                <p>6. Хранитель обязуется обеспечить стабильную работу узла, соблюдать требования к геолокации (РФ) и не использовать оборудование для майнинга криптовалют.</p>
-                <p>7. Все выплаты хранителю проводятся как агентское вознаграждение в соответствии с действующим законодательством РФ.</p>
-                <p>8. Хранитель самостоятельно уплачивает налоги в соответствии со своим статусом (самозанятый, ИП, ООО).</p>
-            </div>
+            <div class="agreement-text" id="agreement-text-content"></div>
             <div class="agreement-checkbox-row">
                 <label><input type="checkbox" id="agree-check"> Я принимаю условия агентского договора</label>
             </div>
@@ -566,9 +468,19 @@
         </div>
     </div>
 
-    <!-- Toast -->
-    <div id="toast-container"></div>
+    <!-- Legal Document Viewer -->
+    <div id="modal-legal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content wide">
+            <h2 id="legal-title">Документ</h2>
+            <div class="agreement-text" id="legal-text-content"></div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" id="btn-close-legal">Закрыть</button>
+            </div>
+        </div>
+    </div>
 
+    <div id="toast-container"></div>
     <script src="app.js"></script>
 </body>
 </html>

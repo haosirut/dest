@@ -1,11 +1,11 @@
-//! Unit tests for vaultkeeper-core
+//! Unit tests for soty-core
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn test_chunking_roundtrip_large() {
-        use vaultkeeper_core::chunking;
-        let data = vec![0x42u8; vaultkeeper_core::CHUNK_SIZE * 7 + 1337];
+        use soty_core::chunking;
+        let data = vec![0x42u8; soty_core::CHUNK_SIZE * 7 + 1337];
         let chunks = chunking::chunk_data(&data);
         let reassembled = chunking::assemble_chunks(&chunks);
         assert_eq!(data, reassembled);
@@ -13,7 +13,7 @@ mod tests {
 
     #[test]
     fn test_encryption_various_sizes() {
-        use vaultkeeper_core::{encryption, types::*};
+        use soty_core::{encryption, types::*};
         let key = DerivedKey([0x42u8; DERIVED_KEY_LEN]);
         for size in [0, 1, 15, 16, 255, 1024, 4096, CHUNK_SIZE] {
             let plaintext = vec![size as u8; size];
@@ -25,7 +25,7 @@ mod tests {
 
     #[test]
     fn test_erasure_various_shard_combinations() {
-        use vaultkeeper_core::erasure;
+        use soty_core::erasure;
         let data = vec![0x42u8; 4096];
         let shards = erasure::encode(&data).unwrap();
         
@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_merkle_all_proofs() {
-        use vaultkeeper_core::merkle::MerkleTree;
+        use soty_core::merkle::MerkleTree;
         let chunks: Vec<Vec<u8>> = (0..16).map(|i| format!("data_block_{}", i).into_bytes()).collect();
         let tree = MerkleTree::from_chunks(&chunks);
         for i in 0..chunks.len() {
@@ -54,11 +54,11 @@ mod tests {
 
     #[test]
     fn test_padding_roundtrip_all_sizes() {
-        use vaultkeeper_core::padding;
+        use soty_core::padding;
         for size in [0, 1, 100, 1024, CHUNK_SIZE - 4, CHUNK_SIZE - 1] {
             let data = vec![0xABu8; size];
             let padded = padding::pad_with_length_header(&data);
-            assert_eq!(padded.len(), vaultkeeper_core::CHUNK_SIZE);
+            assert_eq!(padded.len(), soty_core::CHUNK_SIZE);
             let unpadded = padding::unpad_with_length_header(&padded).unwrap();
             assert_eq!(data, unpadded, "Failed for size {}", size);
         }
@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     fn test_bip39_determinism() {
-        use vaultkeeper_core::bip39_recovery;
+        use soty_core::bip39_recovery;
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         assert!(bip39_recovery::validate_mnemonic(phrase));
         let mnemonic = bip39_recovery::parse_mnemonic(phrase).unwrap();

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# VaultKeeper P2P — Documentation Generation Script
+# SOTY P2P — Documentation Generation Script
 # =============================================================================
 # Скрипт для автоматической генерации документации:
 #   1. cargo doc --workspace (с полным набором флагов)
@@ -189,7 +189,7 @@ generate_report() {
     log_section "ИТОГОВЫЙ ОТЧЁТ"
 
     {
-        echo "=== VaultKeeper P2P — Отчёт о генерации документации ==="
+        echo "=== SOTY P2P — Отчёт о генерации документации ==="
         echo "Дата: $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "Хост: $(hostname)"
         echo "Rust: $(rustc --version 2>/dev/null || echo 'не установлен')"
@@ -220,7 +220,7 @@ generate_report() {
 main() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║   VaultKeeper P2P — Doc Generation       ║${NC}"
+    echo -e "${CYAN}║   SOTY P2P — Doc Generation       ║${NC}"
     echo -e "${CYAN}║   $(date '+%Y-%m-%d %H:%M:%S')                   ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 

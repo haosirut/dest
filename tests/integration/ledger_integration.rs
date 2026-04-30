@@ -4,7 +4,7 @@
 mod tests {
     #[test]
     fn test_ledger_offline_write_online_sync() {
-        use vaultkeeper_ledger::LedgerStore;
+        use soty_ledger::LedgerStore;
 
         // Simulate offline: write entries
         let store = LedgerStore::open_in_memory().unwrap();
@@ -30,8 +30,8 @@ mod tests {
 
     #[test]
     fn test_conflict_resolution_integration() {
-        use vaultkeeper_ledger::conflict::{ConflictResolver, LedgerConflict};
-        use vaultkeeper_ledger::gossip_sync::LedgerSyncManager;
+        use soty_ledger::conflict::{ConflictResolver, LedgerConflict};
+        use soty_ledger::gossip_sync::LedgerSyncManager;
 
         let local = serde_json::json!({
             "id": "tx1", "seq": 1,

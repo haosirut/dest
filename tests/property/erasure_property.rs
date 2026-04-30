@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use vaultkeeper_core::erasure;
+    use soty_core::erasure;
 
     /// Property: Any 3 of 5 shards can reconstruct the original data
     #[test]

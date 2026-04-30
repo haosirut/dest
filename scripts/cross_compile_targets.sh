@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# VaultKeeper P2P — Cross-Compilation Script
+# SOTY P2P — Cross-Compilation Script
 # =============================================================================
 # Скрипт для кросс-компиляции проекта под целевые платформы:
 #   Linux (x86_64, aarch64), macOS (x86_64, aarch64), Windows (x86_64)
@@ -216,9 +216,9 @@ build_targets() {
             # Определение пути к артефакту
             local artifact_path="${PROJECT_ROOT}/target/${target}/release"
             if [[ "$target" == *"windows"* ]]; then
-                artifact_path="${artifact_path}/vaultkeeper.exe"
+                artifact_path="${artifact_path}/soty.exe"
             else
-                artifact_path="${artifact_path}/vaultkeeper"
+                artifact_path="${artifact_path}/soty"
             fi
 
             local artifact_size="не найден"
@@ -277,7 +277,7 @@ generate_report() {
 
     # Запись в файл
     {
-        echo "=== VaultKeeper P2P — Отчёт о кросс-компиляции ==="
+        echo "=== SOTY P2P — Отчёт о кросс-компиляции ==="
         echo "Дата: $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "Хост: $(hostname)"
         echo "Rust: $(rustc --version 2>/dev/null)"
@@ -301,7 +301,7 @@ generate_report() {
 main() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║   VaultKeeper P2P — Cross-Compilation        ║${NC}"
+    echo -e "${CYAN}║   SOTY P2P — Cross-Compilation        ║${NC}"
     echo -e "${CYAN}║   $(date '+%Y-%m-%d %H:%M:%S')                     ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════╝${NC}"
 

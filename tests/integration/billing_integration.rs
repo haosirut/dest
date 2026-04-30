@@ -7,7 +7,7 @@ mod tests {
 
     #[test]
     fn test_full_billing_lifecycle() {
-        use vaultkeeper_billing::{BillingAccount, BillingCalculator, rates::*};
+        use soty_billing::{BillingAccount, BillingCalculator, rates::*};
 
         // Create account with deposit
         let mut account = BillingAccount::new(dec!(500.00));
@@ -38,8 +38,8 @@ mod tests {
 
     #[test]
     fn test_freeze_lifecycle() {
-        use vaultkeeper_billing::{BillingAccount, rates::*};
-        use vaultkeeper_billing::freeze::FreezeState;
+        use soty_billing::{BillingAccount, rates::*};
+        use soty_billing::freeze::FreezeState;
 
         let mut account = BillingAccount::new(dec!(5.00));
         
@@ -56,8 +56,8 @@ mod tests {
 
     #[test]
     fn test_subscription_pro_rata() {
-        use vaultkeeper_billing::SubscriptionManager;
-        use vaultkeeper_billing::subscription::SubscriptionTier;
+        use soty_billing::SubscriptionManager;
+        use soty_billing::subscription::SubscriptionTier;
 
         let mut manager = SubscriptionManager::new();
         manager.subscribe(SubscriptionTier::Standard).unwrap();
@@ -69,8 +69,8 @@ mod tests {
 
     #[test]
     fn test_daily_monthly_billing_math() {
-        use vaultkeeper_billing::BillingCalculator;
-        use vaultkeeper_billing::rates::*;
+        use soty_billing::BillingCalculator;
+        use soty_billing::rates::*;
         use rust_decimal_macros::dec;
 
         // 2TB on SSD, 2x replication, with cushion

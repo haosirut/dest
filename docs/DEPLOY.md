@@ -1,4 +1,4 @@
-# Руководство по развёртыванию VaultKeeper P2P
+# Руководство по развёртыванию SOTY P2P
 
 ## Предварительные требования
 
@@ -35,8 +35,8 @@ rustup default stable
 ### Клонирование репозитория
 
 ```bash
-git clone https://github.com/vaultkeeper/vaultkeeper-p2p.git
-cd vaultkeeper-p2p
+git clone https://github.com/soty/soty-p2p.git
+cd soty-p2p
 ```
 
 ### Сборка в режиме релиза
@@ -46,7 +46,7 @@ cargo build --release
 ```
 
 После сборки бинарные файлы будут доступны в `target/release/`:
-- `vaultkeeperd` — CLI-демон (из крейта `cli`)
+- `sotyd` — CLI-демон (из крейта `cli`)
 - `tauri-app` — GUI-приложение (только при сборке Tauri)
 
 ### Сборка с оптимизациями для продакшн
@@ -70,34 +70,34 @@ cargo build --release
 ### Копирование бинарного файла
 
 ```bash
-sudo cp target/release/vaultkeeperd /usr/local/bin/
-sudo chmod 755 /usr/local/bin/vaultkeeperd
-vaultkeeperd --version
+sudo cp target/release/sotyd /usr/local/bin/
+sudo chmod 755 /usr/local/bin/sotyd
+sotyd --version
 ```
 
 ### Создание пользователя и каталогов
 
 ```bash
-sudo useradd --system --home-dir /var/lib/vaultkeeper --create-home vaultkeeper
-sudo mkdir -p /var/lib/vaultkeeper/data /var/lib/vaultkeeper/ledger /var/log/vaultkeeper
-sudo chown -R vaultkeeper:vaultkeeper /var/lib/vaultkeeper /var/log/vaultkeeper
+sudo useradd --system --home-dir /var/lib/soty --create-home soty
+sudo mkdir -p /var/lib/soty/data /var/lib/soty/ledger /var/log/soty
+sudo chown -R soty:soty /var/lib/soty /var/log/soty
 ```
 
 ### Конфигурационный файл
 
-Создайте файл `/etc/vaultkeeper/config.toml`:
+Создайте файл `/etc/soty/config.toml`:
 
 ```toml
 [core]
-data_dir = "/var/lib/vaultkeeper/data"
-ledger_dir = "/var/lib/vaultkeeper/ledger"
+data_dir = "/var/lib/soty/data"
+ledger_dir = "/var/lib/soty/ledger"
 log_level = "info"
 
 [p2p]
 listen_addr = "/ip4/0.0.0.0/tcp/9444"
 bootstrap_nodes = [
-    "/dns4/bootstrap1.vaultkeeper.net/tcp/9444/p2p/12D3KooW...",
-    "/dns4/bootstrap2.vaultkeeper.net/tcp/9444/p2p/12D3KooW...",
+    "/dns4/bootstrap1.soty.net/tcp/9444/p2p/12D3KooW...",
+    "/dns4/bootstrap2.soty.net/tcp/9444/p2p/12D3KooW...",
 ]
 heartbeat_interval_secs = 900
 
@@ -113,23 +113,23 @@ disk_type = "ssd"
 
 ### Systemd-юнит
 
-Файл юнита поставляется в репозитории: `cli/vaultkeeperd.service`.
+Файл юнита поставляется в репозитории: `cli/sotyd.service`.
 
 ```bash
-sudo cp cli/vaultkeeperd.service /etc/systemd/system/
+sudo cp cli/sotyd.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable vaultkeeperd
-sudo systemctl start vaultkeeperd
+sudo systemctl enable sotyd
+sudo systemctl start sotyd
 ```
 
 ### Проверка работы
 
 ```bash
 # Статус сервиса
-sudo systemctl status vaultkeeperd
+sudo systemctl status sotyd
 
 # Логи
-sudo journalctl -u vaultkeeperd -f
+sudo journalctl -u sotyd -f
 
 # Проверка API
 curl http://127.0.0.1:8080/api/v1/status
@@ -167,7 +167,7 @@ Bootstrap-узел — это точка входа в P2P-сеть. Новые 
 ### Генерация Peer ID
 
 ```bash
-vaultkeeperd gen-peer-id
+sotyd gen-peer-id
 ```
 
 Команда выведет Peer ID (строка вида `12D3KooW...`), который нужно указать в конфигурации bootstrap-узла.
@@ -203,7 +203,7 @@ max_peers = 200       # Bootstrap-узлы поддерживают больше
 
 ```bash
 # Разрешить P2P-порт
-sudo ufw allow 9444/tcp comment "VaultKeeper P2P"
+sudo ufw allow 9444/tcp comment "SOTY P2P"
 
 # API-сервер — только локальный, не открывать наружу
 # sudo ufw allow 8080/tcp  # НЕ ВЫПОЛНЯТЬ для публичного сервера
@@ -279,23 +279,23 @@ metrics_path = "/metrics"
 
 ```bash
 # 1. Остановить сервис
-sudo systemctl stop vaultkeeperd
+sudo systemctl stop sotyd
 
 # 2. Обновить исходный код
-cd vaultkeeper-p2p
+cd soty-p2p
 git pull origin main
 
 # 3. Пересобрать
 cargo build --release
 
 # 4. Заменить бинарный файл
-sudo cp target/release/vaultkeeperd /usr/local/bin/
+sudo cp target/release/sotyd /usr/local/bin/
 
 # 5. Запустить сервис
-sudo systemctl start vaultkeeperd
+sudo systemctl start sotyd
 
 # 6. Проверить
-sudo systemctl status vaultkeeperd
+sudo systemctl status sotyd
 ```
 
 ### Миграция базы данных
@@ -303,7 +303,7 @@ sudo systemctl status vaultkeeperd
 При обновлении, требующем миграцию схемы SQLite:
 
 ```bash
-vaultkeeperd migrate
+sotyd migrate
 ```
 
 Команда автоматически создаёт резервную копию базы данных перед миграцией.
@@ -314,7 +314,7 @@ vaultkeeperd migrate
 # Переключиться на предыдущую версию
 git checkout v1.2.3
 cargo build --release
-sudo systemctl stop vaultkeeperd
-sudo cp target/release/vaultkeeperd /usr/local/bin/
-sudo systemctl start vaultkeeperd
+sudo systemctl stop sotyd
+sudo cp target/release/sotyd /usr/local/bin/
+sudo systemctl start sotyd
 ```

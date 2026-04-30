@@ -1,4 +1,4 @@
-# VaultKeeper P2P
+# SOTY P2P
 
 Децентрализованное P2P-хранилище данных с клиентским шифрованием.
 
@@ -17,13 +17,13 @@
 ## Структура проекта
 
 ```
-vaultkeeper-p2p/
+soty-p2p/
 ├── core/           # Шифрование, чанкинг, EC-кодирование, BIP39, Merkle
 ├── p2p/            # libp2p, Kademlia DHT, GossipSub, heartbeat
 ├── billing/        # Ежечасный расчёт, 90/10 сплит, freeze/export
 ├── storage/        # seccomp/cgroups sandbox, shard store, replication
 ├── ledger/         # SQLite schema, gossip sync, Merkle root, conflict
-├── cli/            # Headless daemon (vaultkeeperd), systemd, API
+├── cli/            # Headless daemon (sotyd), systemd, API
 ├── tauri/          # Tauri v2 desktop/mobile frontend
 ├── tests/          # Unit, integration, property-based tests
 ├── ci/             # GitHub Actions: CI, release, lint
@@ -36,16 +36,16 @@ vaultkeeper-p2p/
 
 ```bash
 # Сборка
-cargo build --release -p vaultkeeper-cli
+cargo build --release -p soty-cli
 
 # Инициализация узла
-./target/release/vaultkeeperd init
+./target/release/sotyd init
 
 # Запуск демона
-./target/release/vaultkeeperd start
+./target/release/sotyd start
 
 # Сгенерировать ключи восстановления
-./target/release/vaultkeeperd keys generate
+./target/release/sotyd keys generate
 ```
 
 ## Безопасность

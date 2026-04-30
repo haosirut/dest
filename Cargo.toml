@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "core",
-    "p2p",
-    "billing",
-    "storage",
-    "ledger",
-    "cli",
+    "soty-core",
+    "soty-p2p",
+    "soty-billing",
+    "soty-storage",
+    "soty-ledger",
+    "soty-cli",
 ]
 exclude = [
     "tauri/src-tauri",
@@ -16,10 +16,10 @@ exclude = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["VaultKeeper Team"]
+authors = ["SOTY Team"]
 license = "AGPL-3.0-or-later"
 rust-version = "1.75"
-repository = "https://github.com/haosirut/vaultkeeper-p2p"
+repository = "https://github.com/haosirut/soty-p2p"
 
 [workspace.dependencies]
 # Async runtime

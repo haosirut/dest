@@ -1,4 +1,4 @@
-# Руководство пользователя VaultKeeper P2P
+# Руководство пользователя SOTY P2P
 
 ## Установка
 
@@ -8,52 +8,52 @@
 
 ```bash
 # Из пакетного менеджера (если доступны пакеты)
-sudo apt install vaultkeeperd
+sudo apt install sotyd
 
 # Или из исходного кода
-git clone https://github.com/vaultkeeper/vaultkeeper-p2p.git
-cd vaultkeeper-p2p
+git clone https://github.com/soty/soty-p2p.git
+cd soty-p2p
 cargo build --release
-sudo cp target/release/vaultkeeperd /usr/local/bin/
+sudo cp target/release/sotyd /usr/local/bin/
 ```
 
 ### macOS
 
 ```bash
 # Через Homebrew (если доступен)
-brew install vaultkeeper
+brew install soty
 
 # Или из исходного кода
-git clone https://github.com/vaultkeeper/vaultkeeper-p2p.git
-cd vaultkeeper-p2p
+git clone https://github.com/soty/soty-p2p.git
+cd soty-p2p
 cargo build --release
-sudo cp target/release/vaultkeeperd /usr/local/bin/
+sudo cp target/release/sotyd /usr/local/bin/
 ```
 
 ### Windows
 
-Скачайте установщик с официального сайта или используйте GUI-приложение Tauri (vaultkeeper-setup.exe). CLI-функционал на Windows ограничен — работа в режиме хоста (приём чужих шардов) не поддерживается.
+Скачайте установщик с официального сайта или используйте GUI-приложение Tauri (soty-setup.exe). CLI-функционал на Windows ограничен — работа в режиме хоста (приём чужих шардов) не поддерживается.
 
 ### Проверка установки
 
 ```bash
-vaultkeeperd --version
-vaultkeeperd --help
+sotyd --version
+sotyd --help
 ```
 
 ---
 
-## Первоначальная настройка (vaultkeeperd init)
+## Первоначальная настройка (sotyd init)
 
 Перед началом работы необходимо инициализировать хранилище. Команда `init` создаёт конфигурацию, базу данных ledger и генерирует ключи шифрования.
 
 ```bash
-vaultkeeperd init
+sotyd init
 ```
 
 ### Процесс инициализации
 
-1. **Каталог данных**: Вас попросят указать каталог для хранения локальных данных. По умолчанию: `~/.vaultkeeper/data`.
+1. **Каталог данных**: Вас попросят указать каталог для хранения локальных данных. По умолчанию: `~/.soty/data`.
 
 2. **Мастер-пароль**: Введите надёжный мастер-пароль (минимум 12 символов, рекомендуется использовать менеджер паролей). Пароль используется для вывода ключа шифрования через Argon2id.
 
@@ -70,7 +70,7 @@ vaultkeeperd init
 ### Что создаётся при инициализации
 
 ```
-~/.vaultkeeper/
+~/.soty/
 ├── config.toml          # Конфигурация
 ├── data/
 │   ├── encryption.key   # Зашифрованный ключ шифрования (защищён мастер-паролем)
@@ -103,7 +103,7 @@ vaultkeeperd init
 ### Команда для повторного отображения мнемоники
 
 ```bash
-vaultkeeperd mnemonic show
+sotyd mnemonic show
 ```
 
 Команда потребует ввода мастер-пароля. Если вы забыли пароль, но сохранили мнемонику — используйте процедуру восстановления (см. ниже).
@@ -115,7 +115,7 @@ vaultkeeperd mnemonic show
 ### Базовая загрузка
 
 ```bash
-vaultkeeperd upload /путь/к/файлу.txt
+sotyd upload /путь/к/файлу.txt
 ```
 
 Команда:
@@ -129,16 +129,16 @@ vaultkeeperd upload /путь/к/файлу.txt
 
 ```bash
 # Указать уровень репликации
-vaultkeeperd upload /путь/к/файлу.txt --replication 3
+sotyd upload /путь/к/файлу.txt --replication 3
 
 # Указать тип целевого диска
-vaultkeeperd upload /путь/к/файлу.txt --disk-type nvme
+sotyd upload /путь/к/файлу.txt --disk-type nvme
 
 # Загрузить каталог рекурсивно
-vaultkeeperd upload /путь/к/каталогу/ --recursive
+sotyd upload /путь/к/каталогу/ --recursive
 
 # Загрузить с прогресс-баром
-vaultkeeperd upload /путь/к/большому_файлу.iso --progress
+sotyd upload /путь/к/большому_файлу.iso --progress
 ```
 
 ### Сохранение идентификатора файла
@@ -162,7 +162,7 @@ vaultkeeperd upload /путь/к/большому_файлу.iso --progress
 ### Базовое скачивание
 
 ```bash
-vaultkeeperd download f47ac10b-58cc-4372-a567-0e02b2c3d479 --output ./downloaded_file.txt
+sotyd download f47ac10b-58cc-4372-a567-0e02b2c3d479 --output ./downloaded_file.txt
 ```
 
 Команда:
@@ -177,13 +177,13 @@ vaultkeeperd download f47ac10b-58cc-4372-a567-0e02b2c3d479 --output ./downloaded
 
 ```bash
 # Скачивание в определённый каталог
-vaultkeeperd download <FILE_ID> --output-dir ~/Downloads/
+sotyd download <FILE_ID> --output-dir ~/Downloads/
 
 # Скачивание с прогресс-баром
-vaultkeeperd download <FILE_ID> --output ./file.zip --progress
+sotyd download <FILE_ID> --output ./file.zip --progress
 
 # Принудительное повторное скачивание (игнорировать кэш)
-vaultkeeperd download <FILE_ID> --output ./file.zip --force
+sotyd download <FILE_ID> --output ./file.zip --force
 ```
 
 ### Проверка целостности
@@ -191,7 +191,7 @@ vaultkeeperd download <FILE_ID> --output ./file.zip --force
 После скачивания можно проверить целостность файла:
 
 ```bash
-vaultkeeperd verify f47ac10b-58cc-4372-a567-0e02b2c3d479 --file ./downloaded_file.txt
+sotyd verify f47ac10b-58cc-4372-a567-0e02b2c3d479 --file ./downloaded_file.txt
 ```
 
 ---
@@ -201,7 +201,7 @@ vaultkeeperd verify f47ac10b-58cc-4372-a567-0e02b2c3d479 --file ./downloaded_fil
 ### Текущий баланс
 
 ```bash
-vaultkeeperd balance
+sotyd balance
 ```
 
 Вывод:
@@ -215,7 +215,7 @@ vaultkeeperd balance
 ### Детальная история
 
 ```bash
-vaultkeeperd balance --history
+sotyd balance --history
 ```
 
 Выводит таблицу всех операций:
@@ -235,7 +235,7 @@ vaultkeeperd balance --history
 ### Просмотр доступных уровней
 
 ```bash
-vaultkeeperd subscription list
+sotyd subscription list
 ```
 
 ```
@@ -249,10 +249,10 @@ Premium    | 499 RUB  | 5 TiB     | 4x         |
 
 ```bash
 # Перейти на Premium
-vaultkeeperd subscription set premium
+sotyd subscription set premium
 
 # Перейти на бесплатный Archive
-vaultkeeperd subscription set archive
+sotyd subscription set archive
 ```
 
 При смене выполняется пропорциональный перерасчёт (pro-rata) за оставшиеся дни текущего периода.
@@ -260,7 +260,7 @@ vaultkeeperd subscription set archive
 ### Статус подписки
 
 ```bash
-vaultkeeperd subscription status
+sotyd subscription status
 ```
 
 ```
@@ -278,7 +278,7 @@ vaultkeeperd subscription status
 Если вы потеряли устройство или мастер-пароль, но сохранили мнемоническую фразу:
 
 ```bash
-vaultkeeperd recover
+sotyd recover
 ```
 
 ### Процесс восстановления
@@ -304,28 +304,28 @@ vaultkeeperd recover
 ### Интерактивный режим (для тестирования)
 
 ```bash
-vaultkeeperd run
+sotyd run
 ```
 
 ### Фоновый режим через systemd (рекомендуется)
 
 ```bash
-sudo systemctl start vaultkeeperd
-sudo systemctl enable vaultkeeperd  # автозапуск при загрузке
+sudo systemctl start sotyd
+sudo systemctl enable sotyd  # автозапуск при загрузке
 ```
 
 ### Полезные команды
 
 ```bash
 # Статус
-vaultkeeperd status
+sotyd status
 
 # Список подключённых пиров
-vaultkeeperd peers
+sotyd peers
 
 # Список загруженных файлов
-vaultkeeperd files
+sotyd files
 
 # Объём хранимых данных
-vaultkeeperd storage usage
+sotyd storage usage
 ```

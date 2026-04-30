@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# VaultKeeper P2P — Security Audit Script
+# SOTY P2P — Security Audit Script
 # =============================================================================
 # Скрипт для проведения автоматизированного аудита безопасности:
 #   1. cargo audit (проверка зависимостей на известные уязвимости)
@@ -219,7 +219,7 @@ check_licenses() {
 
     for dep in $deps; do
         # Пропуск корневого пакета
-        if [[ "$dep" == "vaultkeeper"* ]]; then
+        if [[ "$dep" == "soty"* ]]; then
             continue
         fi
 
@@ -390,7 +390,7 @@ generate_report() {
 
     # Сохранение отчёта
     {
-        echo "=== VaultKeeper P2P — Отчёт по аудиту безопасности ==="
+        echo "=== SOTY P2P — Отчёт по аудиту безопасности ==="
         echo "Дата: $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "Хост: $(hostname)"
         echo ""
@@ -417,7 +417,7 @@ generate_report() {
 main() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║   VaultKeeper P2P — Security Audit       ║${NC}"
+    echo -e "${CYAN}║   SOTY P2P — Security Audit       ║${NC}"
     echo -e "${CYAN}║   $(date '+%Y-%m-%d %H:%M:%S')                   ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 

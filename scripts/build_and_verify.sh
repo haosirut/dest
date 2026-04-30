@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# VaultKeeper P2P — Build and Verify Script
+# SOTY P2P — Build and Verify Script
 # =============================================================================
 # Выполняет полную проверку проекта: форматирование, линтинг, тесты, сборку.
 # Выводит итоговый отчёт с результатами каждого этапа (PASS/FAIL).
@@ -272,7 +272,7 @@ generate_report() {
 
     # Запись отчёта в файл
     {
-        echo "=== VaultKeeper P2P — Отчёт о сборке ==="
+        echo "=== SOTY P2P — Отчёт о сборке ==="
         echo "Дата: $(date '+%Y-%m-%d %H:%M:%S %Z')"
         echo "Хост: $(hostname)"
         echo "Rust: $(rustc --version 2>/dev/null || echo 'не установлен')"
@@ -297,7 +297,7 @@ generate_report() {
 main() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║   VaultKeeper P2P — Build & Verify       ║${NC}"
+    echo -e "${CYAN}║   SOTY P2P — Build & Verify       ║${NC}"
     echo -e "${CYAN}║   $(date '+%Y-%m-%d %H:%M:%S')                   ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 

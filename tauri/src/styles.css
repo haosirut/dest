@@ -51,6 +51,7 @@ body {
 /* ─── Screens ──────────────────────────────────────────────── */
 
 .screen { min-height: 100vh; }
+#app-main { padding-bottom: 130px; }
 .hidden { display: none !important; }
 
 /* ─── Onboarding ───────────────────────────────────────────── */

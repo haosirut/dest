@@ -1310,7 +1310,7 @@ fn to_hex(bytes: &[u8]) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // File-based logging: writes to soty-debug.log in current directory
+    // File-based logging: writes soty-debug.log next to this source file
     let log_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let file_appender = tracing_appender::rolling::never(&log_dir, "soty-debug.log");
     let (non_blocking_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
@@ -1318,8 +1318,11 @@ pub fn run() {
         .with_writer(non_blocking_writer)
         .with_ansi(false)
         .with_target(true)
+        .with_max_level(tracing::Level::DEBUG)
         .init();
-    tracing::info!("=== Соты v{} started, log dir: {:?} ===", env!("CARGO_PKG_VERSION"), log_dir);
+    tracing::info!("=== Соты v{} started ===", env!("CARGO_PKG_VERSION"));
+    tracing::info!("Log dir: {:?}", log_dir);
+    tracing::info!("Log file: {:?}/soty-debug.log", log_dir);
     // Note: _log_guard must stay alive for the duration of run() to keep logging active
 
     tauri::Builder::default()

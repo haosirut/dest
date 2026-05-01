@@ -6,6 +6,31 @@ const { invoke } = window.__TAURI__.core;
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
+// ─── Error diagnostics ──────────────────────────────────────
+window.onerror = function(msg, url, line, col, err) {
+    debugLog('JS Error: ' + msg + ' at ' + line + ':' + col);
+    return false;
+};
+window.addEventListener('unhandledrejection', function(e) {
+    debugLog('Promise Error: ' + (e.reason && e.reason.message || e.reason || 'unknown'));
+});
+
+// ─── Debug panel ────────────────────────────────────────────
+function debugLog(msg) {
+    const ts = new Date().toLocaleTimeString();
+    const text = ts + ': ' + msg;
+    console.log('[DBG]', msg);
+    try {
+        const panel = document.getElementById('debug-panel');
+        if (panel) {
+            const line = document.createElement('div');
+            line.textContent = text;
+            panel.appendChild(line);
+            panel.scrollTop = panel.scrollHeight;
+        }
+    } catch(e) {}
+}
+
 function fmtMoney(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' \u20BD'; }
 function fmtBytes(b) { if (!b) return '0 \u0411'; const u = ['\u0411','\u041A\u0411','\u041C\u0411','\u0413\u0411']; const i = Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i]; }
 function fmtGB(g) { return g<0.001?'0 \u0413\u0411': g<1?(g*1024).toFixed(1)+' \u041C\u0411': g.toFixed(2)+' \u0413\u0411'; }
@@ -17,7 +42,23 @@ function toast(msg, type='info') {
     setTimeout(()=>el.remove(), 3000);
 }
 
-async function inv(cmd, args={}) { try { return await invoke(cmd, args); } catch(e) { console.error(`[${cmd}]`,e); toast(String(e),'error'); return null; } }
+async function inv(cmd, args={}) {
+    const INVOKE_TIMEOUT = 5000; // 5 seconds
+    try {
+        const result = await Promise.race([
+            invoke(cmd, args),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('TIMEOUT ' + INVOKE_TIMEOUT + 'ms')), INVOKE_TIMEOUT)
+            )
+        ]);
+        return result;
+    } catch(e) {
+        const errMsg = String(e.message || e);
+        debugLog('inv[' + cmd + '] ERROR: ' + errMsg);
+        toast('[' + cmd + '] ' + errMsg, 'error');
+        return null;
+    }
+}
 
 const state = { initialized:false, isKeeper:false, calcDisk:'hdd', topupMethod:'card', timerSeconds:300, creditEnabled:false };
 
@@ -30,7 +71,7 @@ async function init() {
 
 $('#btn-create-wallet').addEventListener('click', async () => {
     const info = await inv('create_wallet');
-    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); }
+    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peerId; $('#wallet-created').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); }
 });
 
 $('#btn-restore-wallet').addEventListener('click', () => { $('#restore-form').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); });
@@ -39,7 +80,7 @@ $('#btn-do-restore').addEventListener('click', async () => {
     const m=$('#mnemonic-input').value.trim();
     if (!m) { toast('Введите фразу','error'); return; }
     const info = await inv('restore_wallet', { mnemonic: m });
-    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#restore-form').classList.add('hidden'); }
+    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peerId; $('#wallet-created').classList.remove('hidden'); $('#restore-form').classList.add('hidden'); }
 });
 
 // ─── Copy buttons (clipboard) ───────────────────────────────
@@ -130,10 +171,12 @@ $('#btn-verify-cancel').addEventListener('click', () => {
 });
 
 function showApp() {
+    debugLog('showApp called');
     $('#onboarding').classList.add('hidden');
     $('#app-main').classList.remove('hidden');
     state.initialized = true;
-    refreshAll();
+    debugLog('UI switched to app-main, starting refresh in 500ms');
+    setTimeout(() => refreshAll(), 500);
 }
 
 // ─── Tab Navigation ──────────────────────────────────────────
@@ -148,7 +191,26 @@ $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
 // ─── Refresh ─────────────────────────────────────────────────
 
 async function refreshAll() {
-    await Promise.all([refreshBalances(), refreshFiles(), refreshKeeperStats(), refreshClientStats(), refreshPaymentHistory(), refreshReferralInfo(), refreshSettings(), updateCalculator()]);
+    const steps = [
+        ['refreshBalances', () => refreshBalances()],
+        ['refreshFiles', () => refreshFiles()],
+        ['refreshKeeperStats', () => refreshKeeperStats()],
+        ['refreshClientStats', () => refreshClientStats()],
+        ['refreshPaymentHistory', () => refreshPaymentHistory()],
+        ['refreshReferralInfo', () => refreshReferralInfo()],
+        ['refreshSettings', () => refreshSettings()],
+        ['updateCalculator', () => updateCalculator()],
+    ];
+    for (const [name, fn] of steps) {
+        try {
+            debugLog('>> ' + name + '...');
+            await fn();
+            debugLog('<< ' + name + ' OK');
+        } catch(e) {
+            debugLog('!! ' + name + ' ERROR: ' + (e.message || e));
+        }
+    }
+    debugLog('refreshAll complete');
 }
 
 // ─── Files ───────────────────────────────────────────────────
@@ -179,10 +241,10 @@ async function refreshFiles() {
             <div class="file-icon">${getFileIcon(f.name)}</div>
             <div class="file-info">
                 <div class="file-name">${esc(f.name)}</div>
-                <div class="file-meta"><span>${fmtBytes(f.size_bytes)}</span><span>${f.disk_type.toUpperCase()}</span><span>${f.is_credit?'[кредит] ':''}${fmtMoney(f.cost_per_month)}/мес</span></div>
+                <div class="file-meta"><span>${fmtBytes(f.sizeBytes)}</span><span>${f.diskType.toUpperCase()}</span><span>${f.isCredit?'[кредит] ':''}${fmtMoney(f.costPerMonth)}/мес</span></div>
             </div>
             <div class="replica-badges">${'<span class="replica-dot"></span>'.repeat(Math.min(f.replicas,4))}</div>
-            <div class="file-cost">${fmtMoney(f.cost_per_month)}/мес</div>
+            <div class="file-cost">${fmtMoney(f.costPerMonth)}/мес</div>
             <div class="file-actions">
                 <button class="btn btn-sm btn-outline" onclick="dlFile('${f.id}')">Скачать</button>
                 <button class="btn btn-sm btn-danger" onclick="delFile('${f.id}','${esc(f.name)}')">Удалить</button>
@@ -482,8 +544,18 @@ function updateTimerDisplay() {
 
 async function onTick() {
     if(!state.initialized) return;
-    const r=await inv('simulate_tick');
-    if(r) await Promise.all([refreshBalances(), refreshKeeperStats()]);
+    try {
+        debugLog('onTick: simulate_tick...');
+        const r=await inv('simulate_tick');
+        if(r) {
+            debugLog('onTick: refreshing balances...');
+            await refreshBalances();
+            await refreshKeeperStats();
+            debugLog('onTick: done');
+        }
+    } catch(e) {
+        debugLog('onTick ERROR: ' + (e.message || e));
+    }
 }
 
 // ─── Periodic Refresh ───────────────────────────────────────
@@ -493,8 +565,10 @@ setInterval(()=>{if(state.initialized)refreshClientStats();},15000);
 // ─── Agreement text loader ──────────────────────────────────
 
 (async()=>{
+    debugLog('Loading agreement text...');
     const text=await inv('get_legal_agency');
     if(text) $('#agreement-text-content').textContent=text;
+    debugLog('Agreement text loaded: ' + (text ? 'OK' : 'empty'));
 })();
 
 // ─── Close account ────────────────────────────────────────
@@ -511,4 +585,42 @@ $('#btn-close-account').addEventListener('click', async () => {
 });
 // ─── Init ────────────────────────────────────────────────────
 
+debugLog('app.js loaded, initializing...');
 init();
+
+// Show debug panel toggle with Ctrl+Shift+D
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        const p = document.getElementById('debug-panel');
+        if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    }
+});
+
+// ─── Footer links ────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    const footerOffer = document.getElementById('footer-offer');
+    const footerAgency = document.getElementById('footer-agency');
+    if (footerOffer) {
+        footerOffer.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const text = await inv('get_legal_offer');
+            if (text) {
+                document.getElementById('legal-title').textContent = 'Публичная оферта';
+                document.getElementById('legal-text-content').textContent = text;
+                document.getElementById('modal-legal').classList.remove('hidden');
+            }
+        });
+    }
+    if (footerAgency) {
+        footerAgency.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const text = await inv('get_legal_agency');
+            if (text) {
+                document.getElementById('legal-title').textContent = 'Агентский договор';
+                document.getElementById('legal-text-content').textContent = text;
+                document.getElementById('modal-legal').classList.remove('hidden');
+            }
+        });
+    }
+    debugLog('Footer links initialized');
+});

@@ -2,16 +2,39 @@
 // Соты — P2P Хранилище: Frontend Application Logic v2
 // ═══════════════════════════════════════════════════════════════
 
-if (window._dbg) window._dbg('app.js loading...');
 const { invoke } = window.__TAURI__.core;
-if (window._dbg) window._dbg('Tauri invoke acquired');
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
+
+// ─── Error diagnostics ──────────────────────────────────────
+window.onerror = function(msg, url, line, col, err) {
+    debugLog('JS Error: ' + msg + ' at ' + line + ':' + col);
+    return false;
+};
+window.addEventListener('unhandledrejection', function(e) {
+    debugLog('Promise Error: ' + (e.reason && e.reason.message || e.reason || 'unknown'));
+});
+
+// ─── Debug panel ────────────────────────────────────────────
+function debugLog(msg) {
+    const ts = new Date().toLocaleTimeString();
+    const text = ts + ': ' + msg;
+    console.log('[DBG]', msg);
+    try {
+        const panel = document.getElementById('debug-panel');
+        if (panel) {
+            const line = document.createElement('div');
+            line.textContent = text;
+            panel.appendChild(line);
+            panel.scrollTop = panel.scrollHeight;
+        }
+    } catch(e) {}
+}
 
 function fmtMoney(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' \u20BD'; }
 function fmtBytes(b) { if (!b) return '0 \u0411'; const u = ['\u0411','\u041A\u0411','\u041C\u0411','\u0413\u0411']; const i = Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i]; }
 function fmtGB(g) { return g<0.001?'0 \u0413\u0411': g<1?(g*1024).toFixed(1)+' \u041C\u0411': g.toFixed(2)+' \u0413\u0411'; }
-function esc(s) { return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(s) : s; }
+function esc(s) { if (typeof DOMPurify !== 'undefined') { return DOMPurify.sanitize(s); } const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
 function toast(msg, type='info') {
     const c=$('#toast-container'), el=document.createElement('div');
@@ -19,22 +42,36 @@ function toast(msg, type='info') {
     setTimeout(()=>el.remove(), 3000);
 }
 
-async function inv(cmd, args={}) { try { return await invoke(cmd, args); } catch(e) { console.error(`[${cmd}]`,e); toast(String(e),'error'); return null; } }
+async function inv(cmd, args={}) {
+    const INVOKE_TIMEOUT = 5000; // 5 seconds
+    try {
+        const result = await Promise.race([
+            invoke(cmd, args),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('TIMEOUT ' + INVOKE_TIMEOUT + 'ms')), INVOKE_TIMEOUT)
+            )
+        ]);
+        return result;
+    } catch(e) {
+        const errMsg = String(e.message || e);
+        debugLog('inv[' + cmd + '] ERROR: ' + errMsg);
+        toast('[' + cmd + '] ' + errMsg, 'error');
+        return null;
+    }
+}
 
 const state = { initialized:false, isKeeper:false, calcDisk:'hdd', topupMethod:'card', timerSeconds:300, creditEnabled:false };
 
 // ─── Onboarding ──────────────────────────────────────────────
 
 async function init() {
-    if (window._dbg) window._dbg('init() called');
     if (await inv('check_initialized')) showApp();
     startTimer();
-    if (window._dbg) window._dbg('init() done');
 }
 
 $('#btn-create-wallet').addEventListener('click', async () => {
     const info = await inv('create_wallet');
-    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); }
+    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peerId; $('#wallet-created').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); }
 });
 
 $('#btn-restore-wallet').addEventListener('click', () => { $('#restore-form').classList.remove('hidden'); $('#onboard-actions').classList.add('hidden'); });
@@ -43,7 +80,7 @@ $('#btn-do-restore').addEventListener('click', async () => {
     const m=$('#mnemonic-input').value.trim();
     if (!m) { toast('Введите фразу','error'); return; }
     const info = await inv('restore_wallet', { mnemonic: m });
-    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peer_id; $('#wallet-created').classList.remove('hidden'); $('#restore-form').classList.add('hidden'); }
+    if (info) { $('#mnemonic-text').textContent=info.mnemonic; $('#peer-id-display').textContent=info.peerId; $('#wallet-created').classList.remove('hidden'); $('#restore-form').classList.add('hidden'); }
 });
 
 // ─── Copy buttons (clipboard) ───────────────────────────────
@@ -83,67 +120,63 @@ $('#btn-key-written').addEventListener('click', () => {
 
 $('#btn-continue').addEventListener('click', async () => {
     if ($('#btn-continue').disabled) return;
-    // Show mnemonic verification modal
+    // Show mnemonic verification modal with 3 random words
     const mnemonic = $('#mnemonic-text').textContent.trim();
-    if (!mnemonic) { showApp(); return; }
     const words = mnemonic.split(/\s+/);
-    if (words.length < 3) { showApp(); return; }
-    // Pick 3 random positions
-    const positions = [];
-    const usedIdx = new Set();
-    while (positions.length < 3) {
-        const idx = Math.floor(Math.random() * words.length);
-        if (!usedIdx.has(idx)) { usedIdx.add(idx); positions.push(idx); }
+    const positions = [
+        Math.floor(Math.random() * 24),
+        Math.floor(Math.random() * 24),
+        Math.floor(Math.random() * 24)
+    ];
+    // Deduplicate positions
+    const uniquePositions = [...new Set(positions)];
+    while (uniquePositions.length < 3) {
+        uniquePositions.push(Math.floor(Math.random() * 24));
     }
-    // Show verification modal
-    $('#wallet-created').classList.add('hidden');
-    const prompts = $('#verify-prompts');
-    prompts.innerHTML = positions.map((pos, i) => `
-            <div class="input-group">
-                <label class="input-label">Слово #${pos + 1}</label>
-                <input type="text" class="input-field verify-input" data-pos="${pos}" placeholder="Введите слово..." autocomplete="off">
-            </div>`).join('');
+    uniquePositions.forEach((pos, i) => {
+        const word = words[pos] || '?';
+        $(`#verify-word-${i+1}-hint`).textContent = word;
+        $(`#verify-label-${i+1}`).textContent = `Слово #${i+1} (позиция ${pos+1})`;
+        $(`#verify-word-${i+1}`).value = '';
+    });
     $('#verify-error').classList.add('hidden');
-    $('#verify-modal').classList.remove('hidden');
-    // Store expected answers
-    window._verifyPositions = positions;
-    window._verifyExpected = positions.map(p => words[p]);
+    $('#mnemonic-verify').classList.remove('hidden');
+    // Hide the key-display and buttons behind it
+    $('.onboarding-btns').first().classList.add('hidden');
+    // Store positions for verification
+    window._verifyPositions = uniquePositions;
 });
 
-$('#btn-verify-submit').addEventListener('click', async () => {
-    const inputs = document.querySelectorAll('.verify-input');
-    const answers = [];
-    const positions = [];
-    for (const inp of inputs) {
-        answers.push(inp.value.trim().toLowerCase());
-        positions.push(parseInt(inp.dataset.pos));
-    }
-    const r = await inv('verify_mnemonic_words_cmd', { positions, expected: window._verifyExpected });
-    if (r === true) {
-        $('#verify-modal').classList.add('hidden');
+$('#btn-verify-mnemonic').addEventListener('click', async () => {
+    const positions = window._verifyPositions || [0, 1, 2];
+    const expected = [
+        $('#verify-word-1').value.trim(),
+        $('#verify-word-2').value.trim(),
+        $('#verify-word-3').value.trim()
+    ];
+    const ok = await inv('verify_mnemonic_words_cmd', { positions, expected });
+    if (ok) {
         await inv('confirm_mnemonic_shown');
         showApp();
     } else {
-        const errEl = $('#verify-error');
-        errEl.textContent = 'Неверные слова. Проверьте фразу и попробуйте снова.';
-        errEl.classList.remove('hidden');
-        for (const inp of inputs) { inp.value = ''; inp.style.borderColor = 'var(--danger)'; }
-        setTimeout(() => { for (const inp of inputs) { inp.style.borderColor = ''; } }, 2000);
+        $('#verify-error').classList.remove('hidden');
+        toast('Неверные слова', 'error');
     }
 });
 
 $('#btn-verify-cancel').addEventListener('click', () => {
-    $('#verify-modal').classList.add('hidden');
-    $('#wallet-created').classList.remove('hidden');
+    $('#mnemonic-verify').classList.add('hidden');
+    $('.onboarding-btns').first().classList.remove('hidden');
+    window._verifyPositions = null;
 });
 
 function showApp() {
-    if (window._dbg) window._dbg('showApp() called');
+    debugLog('showApp called');
     $('#onboarding').classList.add('hidden');
     $('#app-main').classList.remove('hidden');
     state.initialized = true;
-    if (window._dbg) window._dbg('calling refreshAll()');
-    refreshAll().then(() => { if (window._dbg) window._dbg('refreshAll() DONE'); });
+    debugLog('UI switched to app-main, starting refresh in 500ms');
+    setTimeout(() => refreshAll(), 500);
 }
 
 // ─── Tab Navigation ──────────────────────────────────────────
@@ -158,29 +191,26 @@ $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
 // ─── Refresh ─────────────────────────────────────────────────
 
 async function refreshAll() {
-    if (window._dbg) window._dbg('refreshAll START (sequential)');
     const steps = [
-        ['refreshBalances', refreshBalances],
-        ['refreshFiles', refreshFiles],
-        ['refreshKeeperStats', refreshKeeperStats],
-        ['refreshClientStats', refreshClientStats],
-        ['refreshPaymentHistory', refreshPaymentHistory],
-        ['refreshReferralInfo', refreshReferralInfo],
-        ['refreshSettings', refreshSettings],
-        ['updateCalculator', updateCalculator],
+        ['refreshBalances', () => refreshBalances()],
+        ['refreshFiles', () => refreshFiles()],
+        ['refreshKeeperStats', () => refreshKeeperStats()],
+        ['refreshClientStats', () => refreshClientStats()],
+        ['refreshPaymentHistory', () => refreshPaymentHistory()],
+        ['refreshReferralInfo', () => refreshReferralInfo()],
+        ['refreshSettings', () => refreshSettings()],
+        ['updateCalculator', () => updateCalculator()],
     ];
     for (const [name, fn] of steps) {
         try {
-            if (window._dbg) window._dbg('>> ' + name + '() ...');
+            debugLog('>> ' + name + '...');
             await fn();
-            if (window._dbg) window._dbg('<< ' + name + '() OK');
+            debugLog('<< ' + name + ' OK');
         } catch(e) {
-            const msg = name + ' FAILED: ' + (e && e.message ? e.message : String(e));
-            if (window._dbg) window._dbg(msg, 'error');
-            try { alert('[ERROR] ' + msg); } catch(ex) {}
+            debugLog('!! ' + name + ' ERROR: ' + (e.message || e));
         }
     }
-    if (window._dbg) window._dbg('refreshAll ALL DONE');
+    debugLog('refreshAll complete');
 }
 
 // ─── Files ───────────────────────────────────────────────────
@@ -211,10 +241,10 @@ async function refreshFiles() {
             <div class="file-icon">${getFileIcon(f.name)}</div>
             <div class="file-info">
                 <div class="file-name">${esc(f.name)}</div>
-                <div class="file-meta"><span>${fmtBytes(f.size_bytes)}</span><span>${f.disk_type.toUpperCase()}</span><span>${f.is_credit?'[кредит] ':''}${fmtMoney(f.cost_per_month)}/мес</span></div>
+                <div class="file-meta"><span>${fmtBytes(f.sizeBytes)}</span><span>${f.diskType.toUpperCase()}</span><span>${f.isCredit?'[кредит] ':''}${fmtMoney(f.costPerMonth)}/мес</span></div>
             </div>
             <div class="replica-badges">${'<span class="replica-dot"></span>'.repeat(Math.min(f.replicas,4))}</div>
-            <div class="file-cost">${fmtMoney(f.cost_per_month)}/мес</div>
+            <div class="file-cost">${fmtMoney(f.costPerMonth)}/мес</div>
             <div class="file-actions">
                 <button class="btn btn-sm btn-outline" onclick="dlFile('${f.id}')">Скачать</button>
                 <button class="btn btn-sm btn-danger" onclick="delFile('${f.id}','${esc(f.name)}')">Удалить</button>
@@ -232,41 +262,39 @@ async function delFile(id,name) { const r=await inv('delete_file',{fileId:id}); 
 async function refreshBalances() {
     const c = await inv('get_client_balance');
     if (c) {
-        const el = (id) => document.getElementById(id);
-        if (el('client-balance')) el('client-balance').textContent = c.balance.toFixed(2);
-        if (el('client-bonus')) el('client-bonus').textContent = c.bonus.toFixed(2);
+        $('#client-balance').textContent = c.balance.toFixed(2);
+        $('#client-bonus').textContent = c.bonus.toFixed(2);
         state.creditEnabled = c.creditStorageEnabled;
-        if (el('credit-mult-label')) el('credit-mult-label').textContent = c.creditStorageEnabled ? 'x1.5' : 'x1.0';
+        $('#credit-mult-label').textContent = c.creditStorageEnabled ? 'x1.5' : 'x1.0';
 
         // Low balance warning
-        const wb = el('low-balance-badge');
-        if (wb) { if (c.lowBalanceWarning) wb.classList.remove('hidden'); else wb.classList.add('hidden'); }
+        const wb = $('#low-balance-badge');
+        if (c.lowBalanceWarning) wb.classList.remove('hidden'); else wb.classList.add('hidden');
 
         // Credit period
-        const cb = el('credit-period-badge');
-        const cuw = el('credit-upload-warning');
+        const cb = $('#credit-period-badge');
+        const cuw = $('#credit-upload-warning');
         if (c.creditAction === 'block_uploads') {
-            if (cb) cb.classList.remove('hidden');
+            cb.classList.remove('hidden');
             const h = Math.floor(c.creditTicksRemaining / 12);
             const m = c.creditTicksRemaining % 12;
-            const ct = el('credit-timer');
-            if (ct) ct.textContent = `${h}:${String(m*5).padStart(2,'0')}`;
-            if (cuw) cuw.classList.remove('hidden');
+            $('#credit-timer').textContent = `${h}:${String(m*5).padStart(2,'0')}`;
+            cuw.classList.remove('hidden');
         } else if (c.creditAction === 'delete_data') {
-            if (cuw) { cuw.textContent = 'Кредитный период истёк. Данные удалены.'; cuw.classList.remove('hidden'); }
-            if (cb) cb.classList.add('hidden');
+            cuw.textContent = 'Кредитный период истёк. Данные удалены.';
+            cuw.classList.remove('hidden');
+            cb.classList.add('hidden');
         } else {
-            if (cb) cb.classList.add('hidden');
-            if (cuw) cuw.classList.add('hidden');
+            cb.classList.add('hidden');
+            cuw.classList.add('hidden');
         }
     }
     const k = await inv('get_keeper_balance');
     if (k) {
-        const el = (id) => document.getElementById(id);
-        if (el('keeper-balance')) el('keeper-balance').textContent = k.balance.toFixed(2);
-        if (el('keeper-pending')) el('keeper-pending').textContent = k.pending.toFixed(2);
-        if (el('btn-payout')) el('btn-payout').disabled = !k.canWithdraw;
-        if (k.payoutNote && el('payout-note')) el('payout-note').textContent = k.payoutNote;
+        $('#keeper-balance').textContent = k.balance.toFixed(2);
+        $('#keeper-pending').textContent = k.pending.toFixed(2);
+        $('#btn-payout').disabled = !k.canWithdraw;
+        if (k.payoutNote) $('#payout-note').textContent = k.payoutNote;
     }
 }
 
@@ -366,87 +394,66 @@ $('#modal-legal .modal-overlay').addEventListener('click',()=>$('#modal-legal').
 
 async function refreshKeeperStats() {
     const s=await inv('get_keeper_stats'); if(!s) return;
-    const el = (id) => document.getElementById(id);
     state.isKeeper=s.isActive;
-    if (el('keeper-toggle')) el('keeper-toggle').checked=s.isActive;
-    if (el('keeper-rating-pay')) el('keeper-rating-pay').textContent=s.ratingPay.toFixed(3);
-    if (el('keeper-rating-alloc')) el('keeper-rating-alloc').textContent=s.ratingAlloc.toFixed(3);
-    if (el('keeper-storage')) el('keeper-storage').textContent=fmtGB(s.storageProvidedGb);
-    if (el('keeper-earnings')) el('keeper-earnings').textContent=fmtMoney(s.earningsTotal);
-    if (el('keeper-peers')) el('keeper-peers').textContent=s.connectedPeers;
-    if (el('white-ip-status')) el('white-ip-status').textContent=s.hasWhiteIp?'Да':'Нет (серый IP)';
-    if (el('bootstrap-status')) el('bootstrap-status').textContent=s.isBootstrap?'Да':'Нет';
+    $('#keeper-toggle').checked=s.isActive;
+    $('#keeper-rating-pay').textContent=s.ratingPay.toFixed(3);
+    $('#keeper-rating-alloc').textContent=s.ratingAlloc.toFixed(3);
+    $('#keeper-storage').textContent=fmtGB(s.storageProvidedGb);
+    $('#keeper-earnings').textContent=fmtMoney(s.earningsTotal);
+    $('#keeper-peers').textContent=s.connectedPeers;
+    $('#white-ip-status').textContent=s.hasWhiteIp?'Да':'Нет (серый IP)';
+    $('#bootstrap-status').textContent=s.isBootstrap?'Да':'Нет';
 
     const pctPay=Math.round(s.ratingPay*100);
-    if (el('rating-fill-pay')) el('rating-fill-pay').style.width=pctPay+'%';
+    $('#rating-fill-pay').style.width=pctPay+'%';
 
-    if(s.relayEnabled){
-        if(el('relay-status')){el('relay-status').textContent='Активен';el('relay-status').classList.add('green');}
-        if(el('btn-toggle-relay'))el('btn-toggle-relay').textContent='Выключить';
-        if(el('relay-bonus-row'))el('relay-bonus-row').classList.remove('hidden');
-    }else{
-        if(el('relay-status')){el('relay-status').textContent=s.relayBanned?'Заблокирован':'Выключен';el('relay-status').classList.remove('green');}
-        if(el('btn-toggle-relay'))el('btn-toggle-relay').textContent='Включить';
-        if(el('relay-bonus-row'))el('relay-bonus-row').classList.add('hidden');
-    }
+    if(s.relayEnabled){$('#relay-status').textContent='Активен';$('#relay-status').classList.add('green');$('#btn-toggle-relay').textContent='Выключить';$('#relay-bonus-row').classList.remove('hidden');}
+    else{$('#relay-status').textContent=s.relayBanned?'Заблокирован':'Выключен';$('#relay-status').classList.remove('green');$('#btn-toggle-relay').textContent='Включить';$('#relay-bonus-row').classList.add('hidden');}
 
-    if(s.bootstrapNote){
-        if(el('bootstrap-bonus-row'))el('bootstrap-bonus-row').classList.remove('hidden');
-        const bbn = el('bootstrap-bonus-row'); if(bbn){const g=bbn.querySelector('.green');if(g)g.textContent='+1% к выплате';}
-    }else{if(el('bootstrap-bonus-row'))el('bootstrap-bonus-row').classList.add('hidden');}
+    if(s.bootstrapNote){$('#bootstrap-bonus-row').classList.remove('hidden');$('#bootstrap-bonus-row .green').textContent='+1% к выплате';}else{$('#bootstrap-bonus-row').classList.add('hidden');}
 
-    if(el('relay-gray-clients'))el('relay-gray-clients').textContent = s.relayGrayClients || 0;
-    if(el('relay-fail-pct'))el('relay-fail-pct').textContent = s.relayFailPct ? (s.relayFailPct * 100).toFixed(1) + '%' : '0%';
+    $('#relay-gray-clients').textContent = s.relayGrayClients || 0;
+    $('#relay-fail-pct').textContent = s.relayFailPct ? (s.relayFailPct * 100).toFixed(1) + '%' : '0%';
     if (s.relayEnabled || s.relayGrayClients > 0 || s.relayFailPct > 0) {
-        if(el('relay-details-row'))el('relay-details-row').classList.remove('hidden');
-        if(el('relay-fail-row'))el('relay-fail-row').classList.remove('hidden');
+        $('#relay-details-row').classList.remove('hidden');
+        $('#relay-fail-row').classList.remove('hidden');
     } else {
-        if(el('relay-details-row'))el('relay-details-row').classList.add('hidden');
-        if(el('relay-fail-row'))el('relay-fail-row').classList.add('hidden');
+        $('#relay-details-row').classList.add('hidden');
+        $('#relay-fail-row').classList.add('hidden');
     }
 
-    if(el('credit-keeper-status'))el('credit-keeper-status').textContent=s.creditStorageKeeper?'Включено':'Выключено';
+    $('#credit-keeper-status').textContent=s.creditStorageKeeper?'Включено':'Выключено';
 
     // Warnings panel
-    const wp=el('warnings-panel');
-    if(wp){
-        if(s.warnings&&s.warnings.length){wp.classList.remove('hidden');wp.innerHTML=s.warnings.map(w=>`<div class="warning-item"><span>${esc(w)}</span></div>`).join('');}
-        else{wp.classList.add('hidden');}
-    }
+    const wp=$('#warnings-panel');
+    if(s.warnings&&s.warnings.length){wp.classList.remove('hidden');wp.innerHTML=s.warnings.map(w=>`<div class="warning-item"><span>${esc(w)}</span></div>`).join('');}
+    else{wp.classList.add('hidden');}
 
     updateKeeperUI();
 }
 
 function updateKeeperUI() {
-    const el = (id) => document.getElementById(id);
-    if(state.isKeeper){
-        if(el('keeper-panel'))el('keeper-panel').classList.remove('inactive');
-        if(el('keeper-inactive-msg'))el('keeper-inactive-msg').classList.add('hidden');
-    }else{
-        if(el('keeper-panel'))el('keeper-panel').classList.add('inactive');
-        if(el('keeper-inactive-msg'))el('keeper-inactive-msg').classList.remove('hidden');
-    }
+    if(state.isKeeper){$('#keeper-panel').classList.remove('inactive');$('#keeper-inactive-msg').classList.add('hidden');}
+    else{$('#keeper-panel').classList.add('inactive');$('#keeper-inactive-msg').classList.remove('hidden');}
 }
 
 async function refreshClientStats() {
     const s=await inv('get_client_stats'); if(!s) return;
-    const el = (id) => document.getElementById(id);
-    if(el('client-storage'))el('client-storage').textContent=fmtGB(s.storageUsedGb);
-    if(el('client-files'))el('client-files').textContent=s.filesCount;
-    if(el('client-monthly-cost'))el('client-monthly-cost').textContent=fmtMoney(s.monthlyCost);
-    if(el('peers-count'))el('peers-count').textContent=s.connectedPeers+' узл.';
-    if(el('credit-client-status'))el('credit-client-status').textContent=s.creditStorageEnabled?'Включено':'Выключено';
+    $('#client-storage').textContent=fmtGB(s.storageUsedGb);
+    $('#client-files').textContent=s.filesCount;
+    $('#client-monthly-cost').textContent=fmtMoney(s.monthlyCost);
+    $('#peers-count').textContent=s.connectedPeers+' узл.';
+    $('#credit-client-status').textContent=s.creditStorageEnabled?'Включено':'Выключено';
 }
 
 // ─── Referrals ──────────────────────────────────────────────
 
 async function refreshReferralInfo() {
     const i=await inv('get_referral_info'); if(!i) return;
-    const el = (id) => document.getElementById(id);
-    if(el('referral-link'))el('referral-link').value=i.referralLink;
-    if(el('referral-code-display'))el('referral-code-display').textContent=i.referralCode;
-    if(el('referral-count'))el('referral-count').textContent=i.invitedCount;
-    if(el('referral-earnings'))el('referral-earnings').textContent=fmtMoney(i.totalEarnings);
+    $('#referral-link').value=i.referralLink;
+    $('#referral-code-display').textContent=i.referralCode;
+    $('#referral-count').textContent=i.invitedCount;
+    $('#referral-earnings').textContent=fmtMoney(i.totalEarnings);
 }
 $('#btn-copy-referral').addEventListener('click',async()=>{
     try{await navigator.clipboard.writeText($('#referral-link').value);toast('Скопировано','success');}
@@ -457,28 +464,22 @@ $('#btn-copy-referral').addEventListener('click',async()=>{
 
 async function refreshSettings() {
     const s=await inv('get_settings'); if(!s) return;
-    const el = (id) => document.getElementById(id);
-    if(el('setting-bootstrap'))el('setting-bootstrap').value=s.bootstrapNodes.join('\n');
-    if(el('setting-storage-limit'))el('setting-storage-limit').value=s.storageLimitGb;
-    if(el('setting-autostart'))el('setting-autostart').checked=s.autoStart;
-    if(el('setting-russia'))el('setting-russia').checked=s.russiaOnly;
-    if(el('setting-credit-client'))el('setting-credit-client').checked=s.creditStorageClient;
-    if(el('setting-credit-keeper'))el('setting-credit-keeper').checked=s.creditStorageKeeper;
+    $('#setting-bootstrap').value=s.bootstrapNodes.join('\n');
+    $('#setting-storage-limit').value=s.storageLimitGb;
+    $('#setting-autostart').checked=s.autoStart;
+    $('#setting-russia').checked=s.russiaOnly;
+    $('#setting-credit-client').checked=s.creditStorageClient;
+    $('#setting-credit-keeper').checked=s.creditStorageKeeper;
 
     const w=await inv('get_wallet_info');
-    if(w){
-        if(el('settings-peer-id'))el('settings-peer-id').textContent=w.peerId;
-        if(el('settings-mnemonic'))el('settings-mnemonic').textContent=w.mnemonic||'(зашифрована)';
-    }
+    if(w){$('#settings-peer-id').textContent=w.peerId;$('#settings-mnemonic').textContent=w.mnemonic||'(зашифрована)';}
 
     const g=await inv('check_geo');
-    if(g){
-        if(el('settings-install-id'))el('settings-install-id').textContent=g.installationId;
-        if(g.verified&&el('geo-status'))el('geo-status').innerHTML='<span class="dot online"></span><span>РФ подтверждена</span>';
-    }
+    if(g){$('#settings-install-id').textContent=g.installationId;if(g.verified)$('#geo-status').innerHTML='<span class="dot online"></span><span>РФ подтверждена</span>';}
 
     const s2 = await inv('get_settings');
     if(s2) {
+        const el = (id) => document.getElementById(id);
         if (el('setting-notify-enabled')) el('setting-notify-enabled').checked = s2.notifyEnabled;
         if (el('setting-notify-email')) el('setting-notify-email').value = s2.notifyEmail || '';
         if (el('setting-smtp-host')) el('setting-smtp-host').value = s2.smtpHost || '';
@@ -500,6 +501,7 @@ $('#setting-credit-keeper').addEventListener('change', async e=>{
     if(r!==null) toast(r?'Кредитное хранение включено':'Кредитное хранение выключено','info');
     refreshSettings();
 });
+
 
 $('#btn-save-settings').addEventListener('click', async()=>{
     const s={
@@ -542,33 +544,83 @@ function updateTimerDisplay() {
 
 async function onTick() {
     if(!state.initialized) return;
-    const r=await inv('simulate_tick');
-    if(r) await Promise.all([refreshBalances(), refreshKeeperStats()]);
+    try {
+        debugLog('onTick: simulate_tick...');
+        const r=await inv('simulate_tick');
+        if(r) {
+            debugLog('onTick: refreshing balances...');
+            await refreshBalances();
+            await refreshKeeperStats();
+            debugLog('onTick: done');
+        }
+    } catch(e) {
+        debugLog('onTick ERROR: ' + (e.message || e));
+    }
 }
 
 // ─── Periodic Refresh ───────────────────────────────────────
 
 setInterval(()=>{if(state.initialized)refreshClientStats();},15000);
 
-// ─── Close Account ───────────────────────────────────────────
-
-$('#btn-close-account').addEventListener('click', async () => {
-    if (!confirm('Вы уверены? Все файлы будут удалены, бонусы сгорят. Баланс будет возвращён полностью.')) return;
-    if (!confirm('Подтвердите закрытие аккаунта. Это действие необратимо.')) return;
-    const r = await inv('close_client_account');
-    if (r) {
-        toast(`Аккаунт закрыт. Возврат: ${fmtMoney(r.refundAmount)}. Удалено файлов: ${r.filesDeleted}`, 'success');
-        await refreshAll();
-    }
-});
-
 // ─── Agreement text loader ──────────────────────────────────
 
 (async()=>{
+    debugLog('Loading agreement text...');
     const text=await inv('get_legal_agency');
     if(text) $('#agreement-text-content').textContent=text;
+    debugLog('Agreement text loaded: ' + (text ? 'OK' : 'empty'));
 })();
 
+// ─── Close account ────────────────────────────────────────
+
+$('#btn-close-account').addEventListener('click', async () => {
+    if (!confirm('Вы уверены? Все файлы будут удалены, бонусы сгорят. Остаток средств вернётся на вашу карту.')) return;
+    const r = await inv('close_client_account');
+    if (r) {
+        toast(`Аккаунт закрыт. Возврат: ${r.refundAmount.toFixed(2)} \u20BD.`, 'success');
+        $('#app-main').classList.add('hidden');
+        $('#onboarding').classList.remove('hidden');
+        state.initialized = false;
+    }
+});
 // ─── Init ────────────────────────────────────────────────────
 
+debugLog('app.js loaded, initializing...');
 init();
+
+// Show debug panel toggle with Ctrl+Shift+D
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        const p = document.getElementById('debug-panel');
+        if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    }
+});
+
+// ─── Footer links ────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    const footerOffer = document.getElementById('footer-offer');
+    const footerAgency = document.getElementById('footer-agency');
+    if (footerOffer) {
+        footerOffer.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const text = await inv('get_legal_offer');
+            if (text) {
+                document.getElementById('legal-title').textContent = 'Публичная оферта';
+                document.getElementById('legal-text-content').textContent = text;
+                document.getElementById('modal-legal').classList.remove('hidden');
+            }
+        });
+    }
+    if (footerAgency) {
+        footerAgency.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const text = await inv('get_legal_agency');
+            if (text) {
+                document.getElementById('legal-title').textContent = 'Агентский договор';
+                document.getElementById('legal-text-content').textContent = text;
+                document.getElementById('modal-legal').classList.remove('hidden');
+            }
+        });
+    }
+    debugLog('Footer links initialized');
+});

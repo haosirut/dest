@@ -54,16 +54,29 @@
                     <button class="btn btn-outline btn-lg" id="btn-key-written">Ключ записан</button>
                     <button class="btn btn-lg btn-continue-disabled" id="btn-continue" disabled>Продолжить</button>
                 </div>
-            </div>
-            <!-- Mnemonic Verification Modal -->
-            <div id="verify-modal" class="hidden">
-                <div class="success-box" style="max-width:500px;margin:0 auto;">
-                    <div class="security-warning">Проверка: введите 3 слова из вашей мнемонической фразы для подтверждения.</div>
-                    <div id="verify-prompts" class="verify-grid"></div>
-                    <div id="verify-error" class="hidden"></div>
+                <div id="mnemonic-verify" class="hidden">
+                    <div class="success-box">
+                        <p>Проверка: введите 3 слова из фразы восстановления для подтверждения.</p>
+                        <p>Слова: <strong id="verify-word-1-hint">?</strong>, <strong id="verify-word-2-hint">?</strong>, <strong id="verify-word-3-hint">?</strong></p>
+                    </div>
+                    <div class="verify-grid">
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-1">Слово #1</label>
+                            <input type="text" id="verify-word-1" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-2">Слово #2</label>
+                            <input type="text" id="verify-word-2" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="verify-label-3">Слово #3</label>
+                            <input type="text" id="verify-word-3" class="input-field" autocomplete="off" placeholder="Введите слово">
+                        </div>
+                    </div>
+                    <div id="verify-error" class="warning-strip hidden">Неверные слова. Попробуйте ещё раз.</div>
                     <div class="onboarding-btns">
-                        <button class="btn btn-green btn-lg" id="btn-verify-submit">Подтвердить</button>
-                        <button class="btn btn-ghost" id="btn-verify-cancel">Отмена</button>
+                        <button class="btn btn-ghost btn-lg" id="btn-verify-cancel">Назад</button>
+                        <button class="btn btn-green btn-lg" id="btn-verify-mnemonic">Подтвердить</button>
                     </div>
                 </div>
             </div>
@@ -478,25 +491,16 @@
                         <code class="peer-id-code" id="settings-install-id">—</code>
                     </div>
                 </div>
-                <div class="section-block">
-                    <h2 style="color:var(--danger);">Аккаунт</h2>
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <label>Закрыть аккаунт</label>
-                            <p class="setting-desc">Полный возврат баланса, удаление всех файлов, сгорание бонусов. Действие необратимо.</p>
-                        </div>
-                        <button class="btn btn-danger" id="btn-close-account">Закрыть аккаунт</button>
-                    </div>
-                </div>
                 <div class="section-actions">
                     <button class="btn btn-green" id="btn-save-settings">Сохранить настройки</button>
+                    <button class="btn btn-danger" id="btn-close-account">Закрыть аккаунт</button>
                 </div>
             </section>
         </main>
         <footer class="app-footer">
-            <a href="#" onclick="event.preventDefault();invoke('get_legal_offer').then(t=>{document.getElementById('legal-title').textContent='Публичная оферта';document.getElementById('legal-text-content').textContent=t;document.getElementById('modal-legal').classList.remove('hidden')})">Публичная оферта</a>
+            <a href="#" id="footer-offer">Публичная оферта</a>
             <span class="footer-sep">|</span>
-            <a href="#" onclick="event.preventDefault();invoke('get_legal_agency').then(t=>{document.getElementById('legal-title').textContent='Агентский договор';document.getElementById('legal-text-content').textContent=t;document.getElementById('modal-legal').classList.remove('hidden')})">Агентский договор</a>
+            <a href="#" id="footer-agency">Агентский договор</a>
             <span class="footer-sep">|</span>
             <span class="footer-copy">&copy; 2026 Соты</span>
         </footer>
@@ -558,44 +562,8 @@
     </div>
 
     <div id="toast-container"></div>
-    <script>
-    // ═══ DEBUG LOGGER — catches ALL errors, ALWAYS VISIBLE ═══
-    (function(){
-        const logEl = document.createElement('div');
-        logEl.id = 'debug-log';
-        logEl.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:180px;overflow:auto;background:rgba(0,0,0,0.92);color:#0f0;font:11px monospace;z-index:999999;padding:6px 8px;border-top:2px solid #39FF14;';
-        document.body.appendChild(logEl);
-        window._dbg = function(msg, type){
-            const ts = new Date().toLocaleTimeString();
-            const line = document.createElement('div');
-            line.style.color = type==='error'?'#f44':type==='warn'?'#fa0':'#0f0';
-            line.textContent = '['+ts+'] '+msg;
-            logEl.appendChild(line);
-            logEl.scrollTop = logEl.scrollHeight;
-        };
-        window._dbg('DEBUG LOG ACTIVE - app loading...');
-
-        window.onerror = function(msg, src, line, col, err) {
-            const errMsg = 'ERROR: '+msg+' ('+src+':'+line+':'+col+')';
-            window._dbg(errMsg, 'error');
-            // Also show as visible red banner
-            try { alert('[JS ERROR] ' + msg + '\nFile: ' + src + ':' + line); } catch(e) {}
-            return false;
-        };
-        window.addEventListener('unhandledrejection', function(e) {
-            const errMsg = 'REJECTED: '+String(e.reason);
-            window._dbg(errMsg, 'error');
-            try { alert('[PROMISE ERROR] ' + String(e.reason)); } catch(ex) {}
-        });
-
-        // Toggle debug log with Ctrl+Shift+D
-        document.addEventListener('keydown', function(e) {
-            if(e.ctrlKey && e.shiftKey && e.key==='D') {
-                logEl.style.display = logEl.style.display==='none' ? 'block' : 'none';
-            }
-        });
-    })();
-    </script>
+    <!-- Debug panel: visible by default, Ctrl+Shift+D to toggle -->
+    <div id="debug-panel" style="position:fixed;bottom:0;left:0;right:0;height:120px;background:rgba(0,0,0,0.92);color:#0f0;font-size:11px;overflow-y:auto;z-index:99999;padding:4px 8px;font-family:monospace;border-top:1px solid #0f0;"></div>
     <script src="purify.min.js"></script>
     <script src="app.js"></script>
 </body>

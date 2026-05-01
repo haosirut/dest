@@ -158,6 +158,7 @@ impl Default for AppSettings {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FileEntry {
     id: String,
     name: String,
@@ -170,6 +171,7 @@ struct FileEntry {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PaymentRecord {
     id: String,
     kind: String,
@@ -180,6 +182,7 @@ struct PaymentRecord {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PenaltyEntry {
     id: String,
     level: String,      // "low", "medium", "high", "critical"
@@ -190,6 +193,7 @@ struct PenaltyEntry {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct WarningEntry {
     id: String,
     target: String,
@@ -480,11 +484,14 @@ pub fn get_agency_contract_text() -> &'static str {
 
 #[tauri::command]
 fn check_initialized(state: State<AppState>) -> bool {
-    *state.initialized.lock().unwrap()
+    let init = *state.initialized.lock().unwrap();
+    tracing::info!("check_initialized -> {}", init);
+    init
 }
 
 #[tauri::command]
 fn create_wallet(state: State<AppState>) -> WalletInfo {
+    tracing::info!("create_wallet called");
     let mut rng_state: [u8; 32] = [0; 32];
     for i in 0..32 {
         rng_state[i] = (i as u8).wrapping_add(42).wrapping_mul(7);
@@ -536,6 +543,7 @@ fn verify_mnemonic_words_cmd(
 
 #[tauri::command]
 fn confirm_mnemonic_shown(state: State<AppState>) -> Result<(), String> {
+    tracing::info!("confirm_mnemonic_shown");
     *state.mnemonic_shown_once.lock().unwrap() = true;
     Ok(())
 }
@@ -570,6 +578,7 @@ fn sync_files_after_restore(state: State<AppState>) -> Result<String, String> {
 
 #[tauri::command]
 fn get_client_balance(state: State<AppState>) -> ClientBalanceResponse {
+    tracing::info!("get_client_balance START");
     let credit_on = *state.credit_storage_enabled.lock().unwrap();
     let zero_ticks = *state.zero_balance_ticks.lock().unwrap();
     let (credit_action, credit_remaining) = credit_storage_state(
@@ -590,6 +599,7 @@ fn get_client_balance(state: State<AppState>) -> ClientBalanceResponse {
 
 #[tauri::command]
 fn get_keeper_balance(state: State<AppState>) -> KeeperBalanceResponse {
+    tracing::info!("get_keeper_balance START");
     let pending = *state.keeper_pending.lock().unwrap();
     KeeperBalanceResponse {
         balance: *state.keeper_balance.lock().unwrap(),
@@ -791,6 +801,7 @@ fn toggle_keeper_mode(state: State<AppState>, enabled: bool) -> bool {
 
 #[tauri::command]
 fn get_keeper_stats(state: State<AppState>) -> KeeperStatsResponse {
+    tracing::info!("get_keeper_stats START");
     let rp = *state.rating_pay.lock().unwrap();
     let ra = *state.rating_alloc.lock().unwrap();
     let relay_on = *state.relay_enabled.lock().unwrap();
@@ -1005,6 +1016,7 @@ fn get_next_calc_time() -> NextCalcResponse {
 
 #[tauri::command]
 fn simulate_tick(state: State<AppState>) -> TickResponse {
+    tracing::info!("simulate_tick START");
     let tick = {
         let mut t = state.current_tick.lock().unwrap();
         *t += 1;
@@ -1185,9 +1197,11 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
 // ═══════════════════════════════════════════════════════════════
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct WalletInfo { peer_id: String, mnemonic: String, referral_code: String }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ClientBalanceResponse {
     balance: f64, bonus: f64, currency: String,
     credit_storage_enabled: bool, credit_action: String,
@@ -1195,6 +1209,7 @@ struct ClientBalanceResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct KeeperBalanceResponse {
     balance: f64, pending: f64, can_withdraw: bool,
     currency: String, payout_note: Option<String>,
@@ -1204,6 +1219,7 @@ struct KeeperBalanceResponse {
 struct TopupResponse { amount: f64, commission: f64, total: f64 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CalcResponse {
     gb: f64, disk_type: String, replication: u32,
     price_per_gb: f64, cost_per_month: f64, cost_per_5min: f64,
@@ -1211,9 +1227,11 @@ struct CalcResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CalcComparison { hdd_monthly: f64, ssd_monthly: f64, nvme_monthly: f64 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct KeeperStatsResponse {
     is_active: bool, rating_pay: f64, rating_alloc: f64,
     storage_provided_gb: f64, earnings_total: f64,
@@ -1225,6 +1243,7 @@ struct KeeperStatsResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ClientStatsResponse {
     storage_used_gb: f64, files_count: u32,
     connected_peers: u32, monthly_cost: f64,
@@ -1232,24 +1251,29 @@ struct ClientStatsResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct NetworkStatusResponse { connected_peers: u32, status: String, version: String, current_tick: u32 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ReferralInfoResponse {
     referral_code: String, referral_link: String,
     invited_count: u32, total_earnings: f64, note: String,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct GeoResponse {
     verified: bool, country: String, ip: String,
     has_white_ip: bool, installation_id: String,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct NextCalcResponse { seconds_left: u32, interval_minutes: u32 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct TickResponse {
     client_balance: f64, client_bonus: f64, keeper_balance: f64,
     rating_pay: f64, rating_alloc: f64, current_tick: u32,
@@ -1257,6 +1281,7 @@ struct TickResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CloseAccountResponse {
     refund_amount: f64,
     forfeited_bonus: f64,
@@ -1285,9 +1310,17 @@ fn to_hex(bytes: &[u8]) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logging for debug builds
-    #[cfg(debug_assertions)]
-    let _ = tracing_subscriber::fmt::init();
+    // File-based logging: writes to soty-debug.log in current directory
+    let log_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let file_appender = tracing_appender::rolling::never(&log_dir, "soty-debug.log");
+    let (non_blocking_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking_writer)
+        .with_ansi(false)
+        .with_target(true)
+        .init();
+    tracing::info!("=== Соты v{} started, log dir: {:?} ===", env!("CARGO_PKG_VERSION"), log_dir);
+    // Note: _log_guard must stay alive for the duration of run() to keep logging active
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())

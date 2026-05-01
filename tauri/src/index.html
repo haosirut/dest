@@ -498,9 +498,9 @@
             </section>
         </main>
         <footer class="app-footer">
-            <a href="#" onclick="event.preventDefault();invoke('get_legal_offer').then(t=>{document.getElementById('legal-title').textContent='Публичная оферта';document.getElementById('legal-text-content').textContent=t;document.getElementById('modal-legal').classList.remove('hidden')})">Публичная оферта</a>
+            <a href="#" id="footer-offer">Публичная оферта</a>
             <span class="footer-sep">|</span>
-            <a href="#" onclick="event.preventDefault();invoke('get_legal_agency').then(t=>{document.getElementById('legal-title').textContent='Агентский договор';document.getElementById('legal-text-content').textContent=t;document.getElementById('modal-legal').classList.remove('hidden')})">Агентский договор</a>
+            <a href="#" id="footer-agency">Агентский договор</a>
             <span class="footer-sep">|</span>
             <span class="footer-copy">&copy; 2026 Соты</span>
         </footer>
@@ -562,6 +562,8 @@
     </div>
 
     <div id="toast-container"></div>
+    <!-- Debug panel: visible by default, Ctrl+Shift+D to toggle -->
+    <div id="debug-panel" style="position:fixed;bottom:0;left:0;right:0;height:120px;background:rgba(0,0,0,0.92);color:#0f0;font-size:11px;overflow-y:auto;z-index:99999;padding:4px 8px;font-family:monospace;border-top:1px solid #0f0;"></div>
     <script src="purify.min.js"></script>
     <script src="app.js"></script>
 </body>

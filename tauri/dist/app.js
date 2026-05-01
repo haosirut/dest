@@ -158,18 +158,29 @@ $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
 // ─── Refresh ─────────────────────────────────────────────────
 
 async function refreshAll() {
-    if (window._dbg) window._dbg('refreshAll start');
-    await Promise.all([
-        refreshBalances().catch(e=>{if(window._dbg)window._dbg('refreshBalances ERR: '+e,'error');}),
-        refreshFiles().catch(e=>{if(window._dbg)window._dbg('refreshFiles ERR: '+e,'error');}),
-        refreshKeeperStats().catch(e=>{if(window._dbg)window._dbg('refreshKeeperStats ERR: '+e,'error');}),
-        refreshClientStats().catch(e=>{if(window._dbg)window._dbg('refreshClientStats ERR: '+e,'error');}),
-        refreshPaymentHistory().catch(e=>{if(window._dbg)window._dbg('refreshPaymentHistory ERR: '+e,'error');}),
-        refreshReferralInfo().catch(e=>{if(window._dbg)window._dbg('refreshReferralInfo ERR: '+e,'error');}),
-        refreshSettings().catch(e=>{if(window._dbg)window._dbg('refreshSettings ERR: '+e,'error');}),
-        updateCalculator().catch(e=>{if(window._dbg)window._dbg('updateCalculator ERR: '+e,'error');}),
-    ]);
-    if (window._dbg) window._dbg('refreshAll DONE');
+    if (window._dbg) window._dbg('refreshAll START (sequential)');
+    const steps = [
+        ['refreshBalances', refreshBalances],
+        ['refreshFiles', refreshFiles],
+        ['refreshKeeperStats', refreshKeeperStats],
+        ['refreshClientStats', refreshClientStats],
+        ['refreshPaymentHistory', refreshPaymentHistory],
+        ['refreshReferralInfo', refreshReferralInfo],
+        ['refreshSettings', refreshSettings],
+        ['updateCalculator', updateCalculator],
+    ];
+    for (const [name, fn] of steps) {
+        try {
+            if (window._dbg) window._dbg('>> ' + name + '() ...');
+            await fn();
+            if (window._dbg) window._dbg('<< ' + name + '() OK');
+        } catch(e) {
+            const msg = name + ' FAILED: ' + (e && e.message ? e.message : String(e));
+            if (window._dbg) window._dbg(msg, 'error');
+            try { alert('[ERROR] ' + msg); } catch(ex) {}
+        }
+    }
+    if (window._dbg) window._dbg('refreshAll ALL DONE');
 }
 
 // ─── Files ───────────────────────────────────────────────────
@@ -221,39 +232,41 @@ async function delFile(id,name) { const r=await inv('delete_file',{fileId:id}); 
 async function refreshBalances() {
     const c = await inv('get_client_balance');
     if (c) {
-        $('#client-balance').textContent = c.balance.toFixed(2);
-        $('#client-bonus').textContent = c.bonus.toFixed(2);
+        const el = (id) => document.getElementById(id);
+        if (el('client-balance')) el('client-balance').textContent = c.balance.toFixed(2);
+        if (el('client-bonus')) el('client-bonus').textContent = c.bonus.toFixed(2);
         state.creditEnabled = c.creditStorageEnabled;
-        $('#credit-mult-label').textContent = c.creditStorageEnabled ? 'x1.5' : 'x1.0';
+        if (el('credit-mult-label')) el('credit-mult-label').textContent = c.creditStorageEnabled ? 'x1.5' : 'x1.0';
 
         // Low balance warning
-        const wb = $('#low-balance-badge');
-        if (c.lowBalanceWarning) wb.classList.remove('hidden'); else wb.classList.add('hidden');
+        const wb = el('low-balance-badge');
+        if (wb) { if (c.lowBalanceWarning) wb.classList.remove('hidden'); else wb.classList.add('hidden'); }
 
         // Credit period
-        const cb = $('#credit-period-badge');
-        const cuw = $('#credit-upload-warning');
+        const cb = el('credit-period-badge');
+        const cuw = el('credit-upload-warning');
         if (c.creditAction === 'block_uploads') {
-            cb.classList.remove('hidden');
+            if (cb) cb.classList.remove('hidden');
             const h = Math.floor(c.creditTicksRemaining / 12);
             const m = c.creditTicksRemaining % 12;
-            $('#credit-timer').textContent = `${h}:${String(m*5).padStart(2,'0')}`;
-            cuw.classList.remove('hidden');
+            const ct = el('credit-timer');
+            if (ct) ct.textContent = `${h}:${String(m*5).padStart(2,'0')}`;
+            if (cuw) cuw.classList.remove('hidden');
         } else if (c.creditAction === 'delete_data') {
-            cuw.textContent = 'Кредитный период истёк. Данные удалены.';
-            cuw.classList.remove('hidden');
-            cb.classList.add('hidden');
+            if (cuw) { cuw.textContent = 'Кредитный период истёк. Данные удалены.'; cuw.classList.remove('hidden'); }
+            if (cb) cb.classList.add('hidden');
         } else {
-            cb.classList.add('hidden');
-            cuw.classList.add('hidden');
+            if (cb) cb.classList.add('hidden');
+            if (cuw) cuw.classList.add('hidden');
         }
     }
     const k = await inv('get_keeper_balance');
     if (k) {
-        $('#keeper-balance').textContent = k.balance.toFixed(2);
-        $('#keeper-pending').textContent = k.pending.toFixed(2);
-        $('#btn-payout').disabled = !k.canWithdraw;
-        if (k.payoutNote) $('#payout-note').textContent = k.payoutNote;
+        const el = (id) => document.getElementById(id);
+        if (el('keeper-balance')) el('keeper-balance').textContent = k.balance.toFixed(2);
+        if (el('keeper-pending')) el('keeper-pending').textContent = k.pending.toFixed(2);
+        if (el('btn-payout')) el('btn-payout').disabled = !k.canWithdraw;
+        if (k.payoutNote && el('payout-note')) el('payout-note').textContent = k.payoutNote;
     }
 }
 
@@ -353,66 +366,87 @@ $('#modal-legal .modal-overlay').addEventListener('click',()=>$('#modal-legal').
 
 async function refreshKeeperStats() {
     const s=await inv('get_keeper_stats'); if(!s) return;
+    const el = (id) => document.getElementById(id);
     state.isKeeper=s.isActive;
-    $('#keeper-toggle').checked=s.isActive;
-    $('#keeper-rating-pay').textContent=s.ratingPay.toFixed(3);
-    $('#keeper-rating-alloc').textContent=s.ratingAlloc.toFixed(3);
-    $('#keeper-storage').textContent=fmtGB(s.storageProvidedGb);
-    $('#keeper-earnings').textContent=fmtMoney(s.earningsTotal);
-    $('#keeper-peers').textContent=s.connectedPeers;
-    $('#white-ip-status').textContent=s.hasWhiteIp?'Да':'Нет (серый IP)';
-    $('#bootstrap-status').textContent=s.isBootstrap?'Да':'Нет';
+    if (el('keeper-toggle')) el('keeper-toggle').checked=s.isActive;
+    if (el('keeper-rating-pay')) el('keeper-rating-pay').textContent=s.ratingPay.toFixed(3);
+    if (el('keeper-rating-alloc')) el('keeper-rating-alloc').textContent=s.ratingAlloc.toFixed(3);
+    if (el('keeper-storage')) el('keeper-storage').textContent=fmtGB(s.storageProvidedGb);
+    if (el('keeper-earnings')) el('keeper-earnings').textContent=fmtMoney(s.earningsTotal);
+    if (el('keeper-peers')) el('keeper-peers').textContent=s.connectedPeers;
+    if (el('white-ip-status')) el('white-ip-status').textContent=s.hasWhiteIp?'Да':'Нет (серый IP)';
+    if (el('bootstrap-status')) el('bootstrap-status').textContent=s.isBootstrap?'Да':'Нет';
 
     const pctPay=Math.round(s.ratingPay*100);
-    $('#rating-fill-pay').style.width=pctPay+'%';
+    if (el('rating-fill-pay')) el('rating-fill-pay').style.width=pctPay+'%';
 
-    if(s.relayEnabled){$('#relay-status').textContent='Активен';$('#relay-status').classList.add('green');$('#btn-toggle-relay').textContent='Выключить';$('#relay-bonus-row').classList.remove('hidden');}
-    else{$('#relay-status').textContent=s.relayBanned?'Заблокирован':'Выключен';$('#relay-status').classList.remove('green');$('#btn-toggle-relay').textContent='Включить';$('#relay-bonus-row').classList.add('hidden');}
-
-    if(s.bootstrapNote){$('#bootstrap-bonus-row').classList.remove('hidden');$('#bootstrap-bonus-row .green').textContent='+1% к выплате';}else{$('#bootstrap-bonus-row').classList.add('hidden');}
-
-    $('#relay-gray-clients').textContent = s.relayGrayClients || 0;
-    $('#relay-fail-pct').textContent = s.relayFailPct ? (s.relayFailPct * 100).toFixed(1) + '%' : '0%';
-    if (s.relayEnabled || s.relayGrayClients > 0 || s.relayFailPct > 0) {
-        $('#relay-details-row').classList.remove('hidden');
-        $('#relay-fail-row').classList.remove('hidden');
-    } else {
-        $('#relay-details-row').classList.add('hidden');
-        $('#relay-fail-row').classList.add('hidden');
+    if(s.relayEnabled){
+        if(el('relay-status')){el('relay-status').textContent='Активен';el('relay-status').classList.add('green');}
+        if(el('btn-toggle-relay'))el('btn-toggle-relay').textContent='Выключить';
+        if(el('relay-bonus-row'))el('relay-bonus-row').classList.remove('hidden');
+    }else{
+        if(el('relay-status')){el('relay-status').textContent=s.relayBanned?'Заблокирован':'Выключен';el('relay-status').classList.remove('green');}
+        if(el('btn-toggle-relay'))el('btn-toggle-relay').textContent='Включить';
+        if(el('relay-bonus-row'))el('relay-bonus-row').classList.add('hidden');
     }
 
-    $('#credit-keeper-status').textContent=s.creditStorageKeeper?'Включено':'Выключено';
+    if(s.bootstrapNote){
+        if(el('bootstrap-bonus-row'))el('bootstrap-bonus-row').classList.remove('hidden');
+        const bbn = el('bootstrap-bonus-row'); if(bbn){const g=bbn.querySelector('.green');if(g)g.textContent='+1% к выплате';}
+    }else{if(el('bootstrap-bonus-row'))el('bootstrap-bonus-row').classList.add('hidden');}
+
+    if(el('relay-gray-clients'))el('relay-gray-clients').textContent = s.relayGrayClients || 0;
+    if(el('relay-fail-pct'))el('relay-fail-pct').textContent = s.relayFailPct ? (s.relayFailPct * 100).toFixed(1) + '%' : '0%';
+    if (s.relayEnabled || s.relayGrayClients > 0 || s.relayFailPct > 0) {
+        if(el('relay-details-row'))el('relay-details-row').classList.remove('hidden');
+        if(el('relay-fail-row'))el('relay-fail-row').classList.remove('hidden');
+    } else {
+        if(el('relay-details-row'))el('relay-details-row').classList.add('hidden');
+        if(el('relay-fail-row'))el('relay-fail-row').classList.add('hidden');
+    }
+
+    if(el('credit-keeper-status'))el('credit-keeper-status').textContent=s.creditStorageKeeper?'Включено':'Выключено';
 
     // Warnings panel
-    const wp=$('#warnings-panel');
-    if(s.warnings&&s.warnings.length){wp.classList.remove('hidden');wp.innerHTML=s.warnings.map(w=>`<div class="warning-item"><span>${esc(w)}</span></div>`).join('');}
-    else{wp.classList.add('hidden');}
+    const wp=el('warnings-panel');
+    if(wp){
+        if(s.warnings&&s.warnings.length){wp.classList.remove('hidden');wp.innerHTML=s.warnings.map(w=>`<div class="warning-item"><span>${esc(w)}</span></div>`).join('');}
+        else{wp.classList.add('hidden');}
+    }
 
     updateKeeperUI();
 }
 
 function updateKeeperUI() {
-    if(state.isKeeper){$('#keeper-panel').classList.remove('inactive');$('#keeper-inactive-msg').classList.add('hidden');}
-    else{$('#keeper-panel').classList.add('inactive');$('#keeper-inactive-msg').classList.remove('hidden');}
+    const el = (id) => document.getElementById(id);
+    if(state.isKeeper){
+        if(el('keeper-panel'))el('keeper-panel').classList.remove('inactive');
+        if(el('keeper-inactive-msg'))el('keeper-inactive-msg').classList.add('hidden');
+    }else{
+        if(el('keeper-panel'))el('keeper-panel').classList.add('inactive');
+        if(el('keeper-inactive-msg'))el('keeper-inactive-msg').classList.remove('hidden');
+    }
 }
 
 async function refreshClientStats() {
     const s=await inv('get_client_stats'); if(!s) return;
-    $('#client-storage').textContent=fmtGB(s.storageUsedGb);
-    $('#client-files').textContent=s.filesCount;
-    $('#client-monthly-cost').textContent=fmtMoney(s.monthlyCost);
-    $('#peers-count').textContent=s.connectedPeers+' узл.';
-    $('#credit-client-status').textContent=s.creditStorageEnabled?'Включено':'Выключено';
+    const el = (id) => document.getElementById(id);
+    if(el('client-storage'))el('client-storage').textContent=fmtGB(s.storageUsedGb);
+    if(el('client-files'))el('client-files').textContent=s.filesCount;
+    if(el('client-monthly-cost'))el('client-monthly-cost').textContent=fmtMoney(s.monthlyCost);
+    if(el('peers-count'))el('peers-count').textContent=s.connectedPeers+' узл.';
+    if(el('credit-client-status'))el('credit-client-status').textContent=s.creditStorageEnabled?'Включено':'Выключено';
 }
 
 // ─── Referrals ──────────────────────────────────────────────
 
 async function refreshReferralInfo() {
     const i=await inv('get_referral_info'); if(!i) return;
-    $('#referral-link').value=i.referralLink;
-    $('#referral-code-display').textContent=i.referralCode;
-    $('#referral-count').textContent=i.invitedCount;
-    $('#referral-earnings').textContent=fmtMoney(i.totalEarnings);
+    const el = (id) => document.getElementById(id);
+    if(el('referral-link'))el('referral-link').value=i.referralLink;
+    if(el('referral-code-display'))el('referral-code-display').textContent=i.referralCode;
+    if(el('referral-count'))el('referral-count').textContent=i.invitedCount;
+    if(el('referral-earnings'))el('referral-earnings').textContent=fmtMoney(i.totalEarnings);
 }
 $('#btn-copy-referral').addEventListener('click',async()=>{
     try{await navigator.clipboard.writeText($('#referral-link').value);toast('Скопировано','success');}
@@ -423,22 +457,28 @@ $('#btn-copy-referral').addEventListener('click',async()=>{
 
 async function refreshSettings() {
     const s=await inv('get_settings'); if(!s) return;
-    $('#setting-bootstrap').value=s.bootstrapNodes.join('\n');
-    $('#setting-storage-limit').value=s.storageLimitGb;
-    $('#setting-autostart').checked=s.autoStart;
-    $('#setting-russia').checked=s.russiaOnly;
-    $('#setting-credit-client').checked=s.creditStorageClient;
-    $('#setting-credit-keeper').checked=s.creditStorageKeeper;
+    const el = (id) => document.getElementById(id);
+    if(el('setting-bootstrap'))el('setting-bootstrap').value=s.bootstrapNodes.join('\n');
+    if(el('setting-storage-limit'))el('setting-storage-limit').value=s.storageLimitGb;
+    if(el('setting-autostart'))el('setting-autostart').checked=s.autoStart;
+    if(el('setting-russia'))el('setting-russia').checked=s.russiaOnly;
+    if(el('setting-credit-client'))el('setting-credit-client').checked=s.creditStorageClient;
+    if(el('setting-credit-keeper'))el('setting-credit-keeper').checked=s.creditStorageKeeper;
 
     const w=await inv('get_wallet_info');
-    if(w){$('#settings-peer-id').textContent=w.peerId;$('#settings-mnemonic').textContent=w.mnemonic||'(зашифрована)';}
+    if(w){
+        if(el('settings-peer-id'))el('settings-peer-id').textContent=w.peerId;
+        if(el('settings-mnemonic'))el('settings-mnemonic').textContent=w.mnemonic||'(зашифрована)';
+    }
 
     const g=await inv('check_geo');
-    if(g){$('#settings-install-id').textContent=g.installationId;if(g.verified)$('#geo-status').innerHTML='<span class="dot online"></span><span>РФ подтверждена</span>';}
+    if(g){
+        if(el('settings-install-id'))el('settings-install-id').textContent=g.installationId;
+        if(g.verified&&el('geo-status'))el('geo-status').innerHTML='<span class="dot online"></span><span>РФ подтверждена</span>';
+    }
 
     const s2 = await inv('get_settings');
     if(s2) {
-        const el = (id) => document.getElementById(id);
         if (el('setting-notify-enabled')) el('setting-notify-enabled').checked = s2.notifyEnabled;
         if (el('setting-notify-email')) el('setting-notify-email').value = s2.notifyEmail || '';
         if (el('setting-smtp-host')) el('setting-smtp-host').value = s2.smtpHost || '';

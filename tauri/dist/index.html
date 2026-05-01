@@ -559,11 +559,11 @@
 
     <div id="toast-container"></div>
     <script>
-    // ═══ DEBUG LOGGER — catches ALL errors before anything else loads ═══
+    // ═══ DEBUG LOGGER — catches ALL errors, ALWAYS VISIBLE ═══
     (function(){
         const logEl = document.createElement('div');
         logEl.id = 'debug-log';
-        logEl.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:200px;overflow:auto;background:rgba(0,0,0,0.9);color:#0f0;font:12px monospace;z-index:999999;padding:8px;display:none;border-top:2px solid #39FF14;';
+        logEl.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:180px;overflow:auto;background:rgba(0,0,0,0.92);color:#0f0;font:11px monospace;z-index:999999;padding:6px 8px;border-top:2px solid #39FF14;';
         document.body.appendChild(logEl);
         window._dbg = function(msg, type){
             const ts = new Date().toLocaleTimeString();
@@ -571,17 +571,21 @@
             line.style.color = type==='error'?'#f44':type==='warn'?'#fa0':'#0f0';
             line.textContent = '['+ts+'] '+msg;
             logEl.appendChild(line);
-            logEl.style.display = 'block';
             logEl.scrollTop = logEl.scrollHeight;
         };
-        window._dbg('DEBUG LOG ACTIVE');
+        window._dbg('DEBUG LOG ACTIVE - app loading...');
 
         window.onerror = function(msg, src, line, col, err) {
-            window._dbg('ERROR: '+msg+' ('+src+':'+line+':'+col+')', 'error');
-            return false; // still show in console
+            const errMsg = 'ERROR: '+msg+' ('+src+':'+line+':'+col+')';
+            window._dbg(errMsg, 'error');
+            // Also show as visible red banner
+            try { alert('[JS ERROR] ' + msg + '\nFile: ' + src + ':' + line); } catch(e) {}
+            return false;
         };
         window.addEventListener('unhandledrejection', function(e) {
-            window._dbg('REJECTED: '+String(e.reason), 'error');
+            const errMsg = 'REJECTED: '+String(e.reason);
+            window._dbg(errMsg, 'error');
+            try { alert('[PROMISE ERROR] ' + String(e.reason)); } catch(ex) {}
         });
 
         // Toggle debug log with Ctrl+Shift+D

@@ -6,7 +6,7 @@ use crate::models::*;
 use crate::logic::*;
 
 #[tauri::command]
-pub async fn calculate_storage_cost(gb: f64, disk_type: String, credit: bool) -> CalcResponse {
+pub async fn calculate_storage_cost(gb: f64, disk_type: String, credit: bool) -> Result<CalcResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD calculate_storage_cost start");
     let mult = if credit { CREDIT_MULTIPLIER } else { 1.0 };
     let monthly = cost_gb_month(gb, &disk_type) * mult;
@@ -23,15 +23,15 @@ pub async fn calculate_storage_cost(gb: f64, disk_type: String, credit: bool) ->
         },
     };
     tracing::debug!(target: "soty_cmd", "CMD calculate_storage_cost end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]
-pub async fn get_next_calc_time() -> NextCalcResponse {
+pub async fn get_next_calc_time() -> Result<NextCalcResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_next_calc_time start");
     let resp = NextCalcResponse { seconds_left: 300, interval_minutes: 5 };
     tracing::debug!(target: "soty_cmd", "CMD get_next_calc_time end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]

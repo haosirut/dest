@@ -27,33 +27,33 @@ use std::fs::OpenOptions;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // ── File-based tracing ──
-    let log_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let file_appender = tracing_appender::rolling::never(&log_dir, "soty-debug.log");
-    let (non_blocking_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
-    let _ = tracing_subscriber::fmt()
-        .with_writer(non_blocking_writer)
-        .with_ansi(false)
-        .with_target(true)
-        .with_max_level(tracing::Level::DEBUG)
-        .try_init();
-    tracing::info!("=== Соты v{} started ===", env!("CARGO_PKG_VERSION"));
-    tracing::info!("Log dir: {:?}", log_dir);
-    // Note: _log_guard must stay alive for the duration of run()
-
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| {
+            // ── File-based tracing (safe on desktop & Android) ──
+            let log_dir = app.path().app_log_dir()
+                .expect("failed to resolve app_log_dir");
+            let _ = std::fs::create_dir_all(&log_dir);
+            let file_appender = tracing_appender::rolling::never(&log_dir, "soty-debug.log");
+            let (non_blocking_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
+            // Leak guard so file logging stays alive for entire app lifetime
+            Box::leak(Box::new(_log_guard));
+            let _ = tracing_subscriber::fmt()
+                .with_writer(non_blocking_writer)
+                .with_ansi(false)
+                .with_target(true)
+                .with_max_level(tracing::Level::DEBUG)
+                .try_init();
+            tracing::info!("=== Соты v{} started ===", env!("CARGO_PKG_VERSION"));
+            tracing::info!("Log dir: {:?}", log_dir);
+
             // Create JS debug log file at app start
-            if let Some(app_dir) = app.path().app_log_dir().ok() {
-                let _ = std::fs::create_dir_all(&app_dir);
-                let log_path = app_dir.join("soty_debug.log");
-                if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
-                    let _ = writeln!(f, "[START] === Соты запущен ===");
-                }
-                eprintln!("[SOTY] Debug log: {:?}", log_path);
+            let log_path = log_dir.join("soty_debug.log");
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
+                let _ = writeln!(f, "[START] === Соты запущен ===");
             }
+            eprintln!("[SOTY] Debug log: {:?}", log_path);
             Ok(())
         })
         .manage(AppState {

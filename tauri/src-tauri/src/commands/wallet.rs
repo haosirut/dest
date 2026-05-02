@@ -1,4 +1,4 @@
-//! Wallet commands: create, restore, verify mnemonic.
+//! Wallet commands: create, restore, verify mnemonic, referral.
 
 use tauri::State;
 use crate::state::AppState;
@@ -112,4 +112,19 @@ pub async fn sync_files_after_restore(state: State<'_, AppState>) -> Result<Stri
     tracing::debug!(target: "soty_cmd", "CMD sync_files_after_restore end");
     Ok(format!("\u{0421}\u{0438}\u{043d}\u{0445}\u{0440}\u{043e}\u{043d}\u{0438}\u{0437}\u{0430}\u{0446}\u{0438}\u{044f} \u{0444}\u{0430}\u{0439}\u{043b}\u{043e}\u{0432} \u{0434}\u{043b}\u{044f} {} \u{0437}\u{0430}\u{043f}\u{0443}\u{0449}\u{0435}\u{043d}\u{0430} \u{0447}\u{0435}\u{0440}\u{0435}\u{0437} DHT",
         state.peer_id.read()))
+}
+
+#[tauri::command]
+pub async fn get_referral_info(state: State<'_, AppState>) -> Result<ReferralInfoResponse, String> {
+    tracing::debug!(target: "soty_cmd", "CMD get_referral_info start");
+    let code = state.referral_code.read().clone();
+    let resp = ReferralInfoResponse {
+        referral_code: code.clone(),
+        referral_link: format!("https://soty.net/r/{}", code),
+        invited_count: *state.referral_count.read(),
+        total_earnings: *state.referral_earnings.read(),
+        note: "\u{0411}\u{043e}\u{043d}\u{0443}\u{0441}\u{043d}\u{044b}\u{0435} \u{0431}\u{0430}\u{043b}\u{043b}\u{044b} \u{043a}\u{043b}\u{0438}\u{0435}\u{043d}\u{0442}\u{0430} \u{0441}\u{0433}\u{043e}\u{0440}\u{0430}\u{044e}\u{0442} \u{0447}\u{0435}\u{0440}\u{0435}\u{0437} 12 \u{043c}\u{0435}\u{0441}\u{044f}\u{0446}\u{0435}\u{0432}".to_string(),
+    };
+    tracing::debug!(target: "soty_cmd", "CMD get_referral_info end");
+    Ok(resp)
 }

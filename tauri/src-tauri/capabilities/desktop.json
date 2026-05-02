@@ -1,0 +1,9 @@
+{
+  "identifier": "desktop-capability",
+  "platforms": ["linux", "macOS", "windows"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "store:default"
+  ]
+}

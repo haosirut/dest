@@ -43,6 +43,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| {
             // Create JS debug log file at app start
             if let Some(app_dir) = app.path().app_log_dir().ok() {
@@ -99,22 +100,27 @@ pub fn run() {
             settings: RwLock::new(AppSettings::default()),
         })
         .invoke_handler(tauri::generate_handler![
+            // wallet (7)
             commands::wallet::create_wallet,
             commands::wallet::restore_wallet,
             commands::wallet::verify_mnemonic_words_cmd,
             commands::wallet::confirm_mnemonic_shown,
             commands::wallet::get_wallet_info,
             commands::wallet::sync_files_after_restore,
+            commands::wallet::get_referral_info,
+            // balance (6)
             commands::balance::get_client_balance,
             commands::balance::get_keeper_balance,
             commands::balance::get_payment_history,
             commands::balance::topup_client,
             commands::balance::request_payout,
             commands::balance::close_client_account,
+            // files (4)
             commands::files::get_files,
             commands::files::upload_file,
             commands::files::delete_file,
             commands::files::download_file,
+            // keeper (8)
             commands::keeper::toggle_keeper_mode,
             commands::keeper::get_keeper_stats,
             commands::keeper::get_client_stats,
@@ -123,18 +129,23 @@ pub fn run() {
             commands::keeper::initiate_shutdown,
             commands::keeper::send_shutdown_notification,
             commands::keeper::send_low_balance_notification,
+            // settings (5)
             commands::settings::get_settings,
             commands::settings::save_settings,
             commands::settings::check_geo,
             commands::settings::toggle_credit_storage_client,
             commands::settings::toggle_credit_storage_keeper,
+            // penalties (2)
             commands::penalties::get_penalties,
             commands::penalties::get_warnings,
+            // legal (2)
             commands::legal::get_legal_offer,
             commands::legal::get_legal_agency,
+            // calc (3)
             commands::calc::calculate_storage_cost,
             commands::calc::get_next_calc_time,
             commands::calc::simulate_tick,
+            // debug (3)
             commands::debug::debug_log,
             commands::debug::get_debug_log_path,
             commands::debug::discover_local_peers,

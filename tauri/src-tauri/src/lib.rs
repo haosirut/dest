@@ -992,6 +992,29 @@ fn get_warnings(state: State<AppState>) -> Vec<WarningEntry> {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  TAURI COMMANDS: DEBUG LOG TO FILE
+// ═══════════════════════════════════════════════════════════════
+
+use std::io::Write;
+use std::fs::OpenOptions;
+
+#[tauri::command]
+fn debug_log(app: tauri::AppHandle, message: String) {
+    if let Some(app_dir) = app.path().app_log_dir().ok() {
+        let _ = std::fs::create_dir_all(&app_dir);
+        let log_path = app_dir.join("soty_debug.log");
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_path) {
+            let _ = writeln!(file, "{}", message);
+        }
+    }
+}
+
+#[tauri::command]
+fn get_debug_log_path(app: tauri::AppHandle) -> Option<String> {
+    app.path().app_log_dir().ok().map(|d| d.join("soty_debug.log").to_string_lossy().to_string())
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  TAURI COMMANDS: LEGAL DOCUMENTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -1381,7 +1404,7 @@ pub fn run() {
             initiate_shutdown, send_shutdown_notification, send_low_balance_notification, get_referral_info, get_settings,
             save_settings, check_geo, toggle_credit_storage_client,
             toggle_credit_storage_keeper, get_penalties, get_warnings,
-            get_legal_offer, get_legal_agency, get_next_calc_time,
+            get_legal_offer, get_legal_agency, debug_log, get_debug_log_path, get_next_calc_time,
             simulate_tick, sync_files_after_restore,
         ])
         .run(tauri::generate_context!())

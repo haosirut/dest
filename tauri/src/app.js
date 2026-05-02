@@ -15,19 +15,14 @@ window.addEventListener('unhandledrejection', function(e) {
     debugLog('Promise Error: ' + (e.reason && e.reason.message || e.reason || 'unknown'));
 });
 
-// ─── Debug panel ────────────────────────────────────────────
+// ─── Debug log to file (survives app freeze) ───────────────
 function debugLog(msg) {
     const ts = new Date().toLocaleTimeString();
     const text = ts + ': ' + msg;
     console.log('[DBG]', msg);
+    // Write to file via Rust — works even if UI freezes later
     try {
-        const panel = document.getElementById('debug-panel');
-        if (panel) {
-            const line = document.createElement('div');
-            line.textContent = text;
-            panel.appendChild(line);
-            panel.scrollTop = panel.scrollHeight;
-        }
+        invoke('debug_log', { message: text });
     } catch(e) {}
 }
 
@@ -227,9 +222,6 @@ function showApp() {
     $('#onboarding')?.classList.add('hidden');
     $('#app-main')?.classList.remove('hidden');
     state.initialized = true;
-    // Show debug panel when entering main app (for freeze diagnostics)
-    const dp = document.getElementById('debug-panel');
-    if (dp) dp.style.display = 'block';
     debugLog('UI switched to app-main, starting freeze diagnostics');
     startFreezeDiagnostics();
     setTimeout(() => {
@@ -749,14 +741,6 @@ $('#btn-close-account')?.addEventListener('click', async () => {
 
 debugLog('app.js loaded, initializing...');
 init();
-
-// Show debug panel toggle with Ctrl+Shift+D
-document.addEventListener('keydown', function(e) {
-    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        const p = document.getElementById('debug-panel');
-        if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
-    }
-});
 
 // ─── Footer links ────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {

@@ -6,11 +6,11 @@ use crate::models::*;
 use crate::logic::*;
 
 #[tauri::command]
-pub async fn get_files(state: State<'_, AppState>) -> Vec<FileEntry> {
+pub async fn get_files(state: State<'_, AppState>) -> Result<Vec<FileEntry>, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_files start");
     let result = state.files.read().clone();
     tracing::debug!(target: "soty_cmd", "CMD get_files end");
-    result
+    Ok(result)
 }
 
 #[tauri::command]
@@ -20,10 +20,10 @@ pub async fn upload_file(state: State<'_, AppState>, name: String, size_bytes: u
     let zero_ticks = *state.zero_balance_ticks.read();
     let bal = *state.client_balance.read();
     if bal <= 0.0 && credit_on && zero_ticks > 0 {
-        return Err("\u{0417}\u{0430}\u{0433}\u{0440}\u{0443}\u{0437}\u{043a}\u{0438} \u{0437}\u{0430}\u{0431}\u{043b}\u{043e}\u{043a\u{0438}\u{0440}\u{043e}\u{0432}\u{0430}\u{043d}\u{044b}: \u{043d}\u{0443}\u{043b}\u{0435}\u{0432}\u{043e}\u{0439} \u{0431}\u{0430}\u{043b}\u{0430}\u{043d}\u{0441}.".to_string());
+        return Err("\u{0417}\u{0430}\u{0433}\u{0440}\u{0443}\u{0437}\u{043a}\u{0438} \u{0437}\u{0430}\u{0431}\u{043b}\u{043e}\u{043a}\u{0438}\u{0440}\u{043e}\u{0432}\u{0430}\u{043d}\u{044b}: \u{043d}\u{0443}\u{043b}\u{0435}\u{0432}\u{043e}\u{0439} \u{0431}\u{0430}\u{043b}\u{0430}\u{043d}\u{0441}.".to_string());
     }
     if bal <= 0.0 && !credit_on {
-        return Err("\u{041d}\u{0435}\u{0434}\u{043e}\u{0441}\u{0442}\u{0430\u{0442}\u{043e}\u{0447}\u{043d}\u{043e} \u{0441}\u{0440}\u{0435}\u{0434}\u{0441}\u{0442}\u{0432}".to_string());
+        return Err("\u{041d}\u{0435}\u{0434}\u{043e}\u{0441}\u{0442}\u{0430}\u{0442}\u{043e}\u{0447}\u{043d}\u{043e} \u{0441}\u{0440}\u{0435}\u{0434}\u{0441}\u{0442}\u{0432}".to_string());
     }
 
     let is_credit = credit_on;

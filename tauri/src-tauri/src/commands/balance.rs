@@ -6,7 +6,7 @@ use crate::models::*;
 use crate::logic::*;
 
 #[tauri::command]
-pub async fn get_client_balance(state: State<'_, AppState>) -> ClientBalanceResponse {
+pub async fn get_client_balance(state: State<'_, AppState>) -> Result<ClientBalanceResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_client_balance start");
     let credit_on = *state.credit_storage_enabled.read();
     let zero_ticks = *state.zero_balance_ticks.read();
@@ -24,11 +24,11 @@ pub async fn get_client_balance(state: State<'_, AppState>) -> ClientBalanceResp
         low_balance_warning: client_bal < 10.0 && storage_gb > 0.0,
     };
     tracing::debug!(target: "soty_cmd", "CMD get_client_balance end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]
-pub async fn get_keeper_balance(state: State<'_, AppState>) -> KeeperBalanceResponse {
+pub async fn get_keeper_balance(state: State<'_, AppState>) -> Result<KeeperBalanceResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_keeper_balance start");
     let pending = *state.keeper_pending.read();
     let resp = KeeperBalanceResponse {
@@ -37,25 +37,25 @@ pub async fn get_keeper_balance(state: State<'_, AppState>) -> KeeperBalanceResp
         can_withdraw: pending >= PAYOUT_MIN,
         currency: "RUB".to_string(),
         payout_note: if pending < PAYOUT_MIN {
-            Some(format!("\u{041c}\u{0438}\u{043d}\u{0438}\u{043c}\u{0430}\u{043b}\u{044c}\u{043d}\u{0430}\u{044f} \u{0441}\u{0443}\u{043c}\u{043c}\u{0430} \u{0432}\u{044b}\u{0432\u043e}\u{0434}\u{0430}: {} \u{20bd}. \u{0415}\u{0449}\u{0451} \u{043d}\u{0443}\u{0436}\u{043d\u043e}: {:.2} \u{20bd}", PAYOUT_MIN, PAYOUT_MIN - pending))
+            Some(format!("\u{041c}\u{0438}\u{043d}\u{0438}\u{043c}\u{0430}\u{043b}\u{044c}\u{043d}\u{0430}\u{044f} \u{0441}\u{0443}\u{043c}\u{043c}\u{0430} \u{0432}\u{044b}\u{0432}\u{043e}\u{0434}\u{0430}: {} \u{20bd}. \u{0415}\u{0449}\u{0451} \u{043d}\u{0443}\u{0436}\u{043d}\u{043e}: {:.2} \u{20bd}", PAYOUT_MIN, PAYOUT_MIN - pending))
         } else {
-            Some("\u{0412}\u{044b}\u{0432}\u{043e}\u{0434} \u{0434\u043e}\u{0441}\u{0442\u{0443}\u{043f}\u{0435}\u{043d} (\u{0431}\u{0443}\u{0434}\u{043d}\u{0438} 10:00\u{2013}18:00 \u{041c}\u{0421}\u{041a})".to_string())
+            Some("\u{0412}\u{044b}\u{0432}\u{043e}\u{0434} \u{0434}\u{043e}\u{0441}\u{0442}\u{0443}\u{043f}\u{0435}\u{043d} (\u{0431}\u{0443}\u{0434}\u{043d}\u{0438} 10:00\u{2013}18:00 \u{041c}\u{0421}\u{041a})".to_string())
         },
     };
     tracing::debug!(target: "soty_cmd", "CMD get_keeper_balance end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]
-pub async fn get_payment_history(state: State<'_, AppState>) -> Vec<PaymentRecord> {
+pub async fn get_payment_history(state: State<'_, AppState>) -> Result<Vec<PaymentRecord>, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_payment_history start");
     let result = state.payment_history.read().clone();
     tracing::debug!(target: "soty_cmd", "CMD get_payment_history end");
-    result
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn topup_client(state: State<'_, AppState>, amount: f64, method: String) -> TopupResponse {
+pub async fn topup_client(state: State<'_, AppState>, amount: f64, method: String) -> Result<TopupResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD topup_client start");
     let commission = if method == "card" { amount * 0.025 } else { 0.0 };
     let total = amount + commission;
@@ -73,7 +73,7 @@ pub async fn topup_client(state: State<'_, AppState>, amount: f64, method: Strin
     });
 
     tracing::debug!(target: "soty_cmd", "CMD topup_client end");
-    TopupResponse { amount, commission, total }
+    Ok(TopupResponse { amount, commission, total })
 }
 
 #[tauri::command]

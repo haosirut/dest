@@ -18,12 +18,8 @@ mod commands;
 
 use state::AppState;
 use models::AppSettings;
-use logic::uuid_str;
 use std::io::Write;
 use std::fs::OpenOptions;
-
-// Re-export AppSettings for notifications
-pub(crate) use models::AppSettings;
 
 // ═══════════════════════════════════════════════════════════════
 //  APP ENTRY

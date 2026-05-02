@@ -5,11 +5,11 @@ use crate::state::AppState;
 use crate::models::*;
 
 #[tauri::command]
-pub async fn get_settings(state: State<'_, AppState>) -> AppSettings {
+pub async fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_settings start");
     let result = state.settings.read().clone();
     tracing::debug!(target: "soty_cmd", "CMD get_settings end");
-    result
+    Ok(result)
 }
 
 #[tauri::command]
@@ -23,7 +23,7 @@ pub async fn save_settings(state: State<'_, AppState>, settings: AppSettings) ->
 }
 
 #[tauri::command]
-pub async fn check_geo(state: State<'_, AppState>) -> GeoResponse {
+pub async fn check_geo(state: State<'_, AppState>) -> Result<GeoResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD check_geo start");
     let verified = *state.geo_verified.read();
     let resp = GeoResponse {
@@ -34,25 +34,25 @@ pub async fn check_geo(state: State<'_, AppState>) -> GeoResponse {
         installation_id: state.installation_id.read().clone(),
     };
     tracing::debug!(target: "soty_cmd", "CMD check_geo end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]
-pub async fn toggle_credit_storage_client(state: State<'_, AppState>, enabled: bool) -> bool {
+pub async fn toggle_credit_storage_client(state: State<'_, AppState>, enabled: bool) -> Result<bool, String> {
     tracing::debug!(target: "soty_cmd", "CMD toggle_credit_storage_client start");
     *state.credit_storage_enabled.write() = enabled;
     let mut settings = state.settings.write();
     settings.credit_storage_client = enabled;
     tracing::debug!(target: "soty_cmd", "CMD toggle_credit_storage_client end");
-    enabled
+    Ok(enabled)
 }
 
 #[tauri::command]
-pub async fn toggle_credit_storage_keeper(state: State<'_, AppState>, enabled: bool) -> bool {
+pub async fn toggle_credit_storage_keeper(state: State<'_, AppState>, enabled: bool) -> Result<bool, String> {
     tracing::debug!(target: "soty_cmd", "CMD toggle_credit_storage_keeper start");
     *state.credit_storage_keeper.write() = enabled;
     let mut settings = state.settings.write();
     settings.credit_storage_keeper = enabled;
     tracing::debug!(target: "soty_cmd", "CMD toggle_credit_storage_keeper end");
-    enabled
+    Ok(enabled)
 }

@@ -6,7 +6,7 @@ use crate::models::*;
 use crate::logic::*;
 
 #[tauri::command]
-pub async fn create_wallet(state: State<'_, AppState>) -> WalletInfo {
+pub async fn create_wallet(state: State<'_, AppState>) -> Result<WalletInfo, String> {
     tracing::debug!(target: "soty_cmd", "CMD create_wallet start");
     let mut rng_state: [u8; 32] = [0; 32];
     for i in 0..32 {
@@ -25,11 +25,11 @@ pub async fn create_wallet(state: State<'_, AppState>) -> WalletInfo {
     *state.has_referrer.write() = false;
 
     tracing::debug!(target: "soty_cmd", "CMD create_wallet end");
-    WalletInfo {
+    Ok(WalletInfo {
         peer_id,
         mnemonic,
         referral_code: state.referral_code.read().clone(),
-    }
+    })
 }
 
 #[tauri::command]
@@ -37,7 +37,7 @@ pub async fn restore_wallet(state: State<'_, AppState>, mnemonic: String) -> Res
     tracing::debug!(target: "soty_cmd", "CMD restore_wallet start");
     let words: Vec<&str> = mnemonic.split_whitespace().collect();
     if words.len() != 24 {
-        return Err("\u{041c}\u{043d}\u{0435}\u{043c}\u{043e}\u{043d}\u{0438}\u{0447}\u{0435}\u{0441}\u{043a}\u{0430}\u{044f} \u{0444}\u{0440}\u{0430}\u{0437}\u{0430} \u{0434}\u{043e}\u{043b}\u{0436}\u{043d}\u{0430} \u{0441\u{043e}\u{0434}\u{0435}\u{0440}\u{0436}\u{0430}\u{0442}\u{044c} 24 \u{0441}\u{043b}\u{043e}\u{0432}\u{0430}".to_string());
+        return Err("\u{041c}\u{043d}\u{0435}\u{043c}\u{043e}\u{043d}\u{0438}\u{0447}\u{0435}\u{0441}\u{043a}\u{0430}\u{044f} \u{0444}\u{0440}\u{0430}\u{0437}\u{0430} \u{0434}\u{043e}\u{043b}\u{0436}\u{043d}\u{0430} \u{0441}\u{043e}\u{0434}\u{0435}\u{0440}\u{0436}\u{0430}\u{0442}\u{044c} 24 \u{0441}\u{043b}\u{043e}\u{0432}\u{0430}".to_string());
     }
 
     let mut rng_state: [u8; 32] = [0; 32];
@@ -88,7 +88,7 @@ pub async fn confirm_mnemonic_shown(state: State<'_, AppState>) -> Result<(), St
 }
 
 #[tauri::command]
-pub async fn get_wallet_info(state: State<'_, AppState>) -> WalletInfo {
+pub async fn get_wallet_info(state: State<'_, AppState>) -> Result<WalletInfo, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_wallet_info start");
     let info = WalletInfo {
         peer_id: state.peer_id.read().clone(),
@@ -100,7 +100,7 @@ pub async fn get_wallet_info(state: State<'_, AppState>) -> WalletInfo {
         referral_code: state.referral_code.read().clone(),
     };
     tracing::debug!(target: "soty_cmd", "CMD get_wallet_info end");
-    info
+    Ok(info)
 }
 
 #[tauri::command]

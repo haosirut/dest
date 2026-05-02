@@ -6,15 +6,15 @@ use crate::models::*;
 use crate::logic::*;
 
 #[tauri::command]
-pub async fn toggle_keeper_mode(state: State<'_, AppState>, enabled: bool) -> bool {
+pub async fn toggle_keeper_mode(state: State<'_, AppState>, enabled: bool) -> Result<bool, String> {
     tracing::debug!(target: "soty_cmd", "CMD toggle_keeper_mode start");
     *state.is_keeper.write() = enabled;
     tracing::debug!(target: "soty_cmd", "CMD toggle_keeper_mode end");
-    enabled
+    Ok(enabled)
 }
 
 #[tauri::command]
-pub async fn get_keeper_stats(state: State<'_, AppState>) -> KeeperStatsResponse {
+pub async fn get_keeper_stats(state: State<'_, AppState>) -> Result<KeeperStatsResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_keeper_stats start");
     let rp = *state.rating_pay.read();
     let ra = *state.rating_alloc.read();
@@ -56,11 +56,11 @@ pub async fn get_keeper_stats(state: State<'_, AppState>) -> KeeperStatsResponse
             .collect(),
     };
     tracing::debug!(target: "soty_cmd", "CMD get_keeper_stats end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]
-pub async fn get_client_stats(state: State<'_, AppState>) -> ClientStatsResponse {
+pub async fn get_client_stats(state: State<'_, AppState>) -> Result<ClientStatsResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_client_stats start");
     let resp = ClientStatsResponse {
         storage_used_gb: *state.storage_used_gb.read(),
@@ -70,11 +70,11 @@ pub async fn get_client_stats(state: State<'_, AppState>) -> ClientStatsResponse
         credit_storage_enabled: *state.credit_storage_enabled.read(),
     };
     tracing::debug!(target: "soty_cmd", "CMD get_client_stats end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]
-pub async fn get_network_status(state: State<'_, AppState>) -> NetworkStatusResponse {
+pub async fn get_network_status(state: State<'_, AppState>) -> Result<NetworkStatusResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD get_network_status start");
     let resp = NetworkStatusResponse {
         connected_peers: *state.connected_peers.read(),
@@ -83,7 +83,7 @@ pub async fn get_network_status(state: State<'_, AppState>) -> NetworkStatusResp
         current_tick: *state.current_tick.read(),
     };
     tracing::debug!(target: "soty_cmd", "CMD get_network_status end");
-    resp
+    Ok(resp)
 }
 
 #[tauri::command]
@@ -115,7 +115,7 @@ pub async fn initiate_shutdown(state: State<'_, AppState>, app: AppHandle) -> Re
 }
 
 #[tauri::command]
-pub async fn send_shutdown_notification(state: State<'_, AppState>) {
+pub async fn send_shutdown_notification(state: State<'_, AppState>) -> Result<(), String> {
     tracing::debug!(target: "soty_cmd", "CMD send_shutdown_notification start");
     let settings = state.settings.read().clone();
     let peer_id = state.peer_id.read().clone();
@@ -123,10 +123,11 @@ pub async fn send_shutdown_notification(state: State<'_, AppState>) {
         crate::notifications::notify_shutdown(&settings, &peer_id, SHUTDOWN_WAIT_SECONDS);
     });
     tracing::debug!(target: "soty_cmd", "CMD send_shutdown_notification end");
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn send_low_balance_notification(state: State<'_, AppState>) {
+pub async fn send_low_balance_notification(state: State<'_, AppState>) -> Result<(), String> {
     tracing::debug!(target: "soty_cmd", "CMD send_low_balance_notification start");
     let balance = *state.client_balance.read();
     if balance < 10.0 && *state.storage_used_gb.read() > 0.0 {
@@ -137,4 +138,5 @@ pub async fn send_low_balance_notification(state: State<'_, AppState>) {
         });
     }
     tracing::debug!(target: "soty_cmd", "CMD send_low_balance_notification end");
+    Ok(())
 }

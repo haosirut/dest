@@ -35,7 +35,7 @@ pub async fn get_next_calc_time() -> NextCalcResponse {
 }
 
 #[tauri::command]
-pub async fn simulate_tick(state: State<'_, AppState>) -> TickResponse {
+pub async fn simulate_tick(state: State<'_, AppState>) -> Result<TickResponse, String> {
     tracing::debug!(target: "soty_cmd", "CMD simulate_tick start");
 
     // Advance tick
@@ -223,5 +223,5 @@ pub async fn simulate_tick(state: State<'_, AppState>) -> TickResponse {
         credit_action,
     };
     tracing::debug!(target: "soty_cmd", "CMD simulate_tick end");
-    resp
+    Ok(resp)
 }

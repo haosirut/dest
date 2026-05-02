@@ -224,7 +224,7 @@ pub fn validate_withdraw_time() -> Result<(), String> {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
     let day_of_week = (secs / 86400 + 4) % 7;
     if day_of_week >= 5 {
-        return Err("\u{0412}\u{044b}\u{0432}\u{043e}\u{0434} \u{0441}\u{0440}\u{0435}\u{0434}\u{0441}\u{0442}\u{0432} \u{0434}\u{043e}\u{0441}\u{0442}\u{0443}\u{043f}\u{0435}\u{043d} \u{0442}\u{043e}\u{043b}\u{044c}\u{043a}\u{043e} \u{0432} \u{0431}\u{0443}\u{0434}\u{043d}\u{0438\u{0435} \u{0434\u{043d}\u{0438} (\u{041f}\u{043d}\u{2013}\u{041f}\u{0442})".to_string());
+        return Err("\u{0412}\u{044b}\u{0432}\u{043e}\u{0434} \u{0441}\u{0440}\u{0435}\u{0434}\u{0441}\u{0442}\u{0432} \u{0434}\u{043e}\u{0441}\u{0442}\u{0443}\u{043f}\u{0435}\u{043d} \u{0442}\u{043e}\u{043b}\u{044c}\u{043a}\u{043e} \u{0432} \u{0431}\u{0443}\u{0434}\u{043d}\u{0438}\u{0435} \u{0434}\u{043d}\u{0438} (\u{041f}\u{043d}\u{2013}\u{041f}\u{0442})".to_string());
     }
     let seconds_since_midnight_utc = secs % 86400;
     let msk_offset = 3 * 3600;
@@ -232,7 +232,7 @@ pub fn validate_withdraw_time() -> Result<(), String> {
     let hour_msk = (seconds_since_midnight_msk / 3600) as u32;
     if hour_msk < 10 || hour_msk >= 18 {
         return Err(format!(
-            "\u{0412}\u{044b}\u{0432}\u{043e}\u{0434} \u{0441}\u{0440}\u{0435}\u{0434}\u{0441}\u{0442}\u{0432} \u{0434}\u{043e}\u{0441}\u{0442}\u{0443}\u{043f}\u{0435}\u{043d} \u{0441} 10:00 \u{0434\u{043e} 18:00 \u{041c}\u{0421}\u{041a}. \u{0421}\u{0435}\u{0439}\u{0447}\u{0430}\u{0441} {}:{:02} \u{041c}\u{0421}\u{041a}",
+            "\u{0412}\u{044b}\u{0432}\u{043e}\u{0434} \u{0441}\u{0440}\u{0435}\u{0434}\u{0441}\u{0442}\u{0432} \u{0434}\u{043e}\u{0441}\u{0442}\u{0443}\u{043f}\u{0435}\u{043d} \u{0441} 10:00 \u{0434}\u{043e} 18:00 \u{041c}\u{0421}\u{041a}. \u{0421}\u{0435}\u{0439}\u{0447}\u{0430}\u{0441} {}:{:02} \u{041c}\u{0421}\u{041a}",
             hour_msk,
             (seconds_since_midnight_msk % 3600) / 60
         ));

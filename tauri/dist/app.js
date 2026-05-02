@@ -15,20 +15,32 @@ window.addEventListener('unhandledrejection', function(e) {
     debugLog('Promise Error: ' + (e.reason && e.reason.message || e.reason || 'unknown'));
 });
 
-// ─── Debug panel ────────────────────────────────────────────
-function debugLog(msg) {
+// ─── Debug log to file (survives app freeze) ───────────────
+let _debugLogReady = false;
+let _debugLogQueue = [];
+
+async function debugLog(msg) {
     const ts = new Date().toLocaleTimeString();
     const text = ts + ': ' + msg;
     console.log('[DBG]', msg);
+    if (!_debugLogReady) {
+        _debugLogQueue.push(text);
+        return;
+    }
     try {
-        const panel = document.getElementById('debug-panel');
-        if (panel) {
-            const line = document.createElement('div');
-            line.textContent = text;
-            panel.appendChild(line);
-            panel.scrollTop = panel.scrollHeight;
-        }
-    } catch(e) {}
+        await invoke('debug_log', { message: text });
+    } catch(e) {
+        console.error('[DBG] write error:', e);
+    }
+}
+
+// Flush queued logs once invoke is confirmed working
+async function flushDebugLog() {
+    _debugLogReady = true;
+    for (const text of _debugLogQueue) {
+        try { await invoke('debug_log', { message: '[queued] ' + text }); } catch(e) {}
+    }
+    _debugLogQueue = [];
 }
 
 function fmtMoney(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' \u20BD'; }
@@ -87,6 +99,7 @@ function startFreezeDiagnostics() {
 // ─── Onboarding ──────────────────────────────────────────────
 
 async function init() {
+    await flushDebugLog();
     debugLog('init() called');
     const isInit = await inv('check_initialized');
     debugLog('check_initialized returned: ' + isInit);
@@ -746,14 +759,6 @@ $('#btn-close-account')?.addEventListener('click', async () => {
 
 debugLog('app.js loaded, initializing...');
 init();
-
-// Show debug panel toggle with Ctrl+Shift+D
-document.addEventListener('keydown', function(e) {
-    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        const p = document.getElementById('debug-panel');
-        if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
-    }
-});
 
 // ─── Footer links ────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {

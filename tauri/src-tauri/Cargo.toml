@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "SOTY Tauri v2 Desktop App"
 
+[lib]
+name = "soty_app"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

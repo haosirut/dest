@@ -401,6 +401,10 @@
                         <div class="setting-info"><label>P2P порт</label><p class="setting-desc">Входящие P2P соединения</p></div>
                         <input type="number" class="input-field small" value="9444" id="setting-port">
                     </div>
+                    <div class="setting-item">
+                        <div class="setting-info"><label>Bootstrap-адрес (debug)</label><p class="setting-desc">IP:порт кастомного bootstrap-узла для локального тестирования</p></div>
+                        <input type="text" class="input-field small" id="setting-bootstrap-addr" placeholder="192.168.1.100:9444">
+                    </div>
                 </div>
                 <div class="section-block">
                     <h2>Хранение</h2>
@@ -504,6 +508,14 @@
             <span class="footer-sep">|</span>
             <span class="footer-copy">&copy; 2026 Соты</span>
         </footer>
+    </div>
+
+    <!-- ═══ BOTTOM NAV (mobile) ═══ -->
+    <div class="bottom-nav">
+        <button class="bottom-nav-btn active" data-tab="files"><span class="bnav-icon">&#128193;</span><span>Файлы</span></button>
+        <button class="bottom-nav-btn" data-tab="balance"><span class="bnav-icon">&#128176;</span><span>Баланс</span></button>
+        <button class="bottom-nav-btn" data-tab="status"><span class="bnav-icon">&#128200;</span><span>Статус</span></button>
+        <button class="bottom-nav-btn" data-tab="settings"><span class="bnav-icon">&#9881;</span><span>Настр.</span></button>
     </div>
 
     <!-- ═══ MODALS ═══ -->

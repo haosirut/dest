@@ -141,6 +141,7 @@ pub fn run() {
             commands::calc::simulate_tick,
             commands::debug::debug_log,
             commands::debug::get_debug_log_path,
+            commands::debug::discover_local_peers,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -26,6 +26,8 @@ pub(crate) struct AppSettings {
     pub notify_penalty: bool,
     pub notify_data_delete: bool,
     pub notify_shutdown: bool,
+    // Debug / mobile
+    pub custom_bootstrap_addr: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -50,6 +52,7 @@ impl Default for AppSettings {
             notify_penalty: true,
             notify_data_delete: true,
             notify_shutdown: true,
+            custom_bootstrap_addr: None,
         }
     }
 }
@@ -267,4 +270,12 @@ pub struct CloseAccountResponse {
     pub refund_amount: f64,
     pub forfeited_bonus: f64,
     pub files_deleted: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredPeer {
+    pub peer_id: String,
+    pub address: String,
+    pub latency_ms: u32,
 }

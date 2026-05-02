@@ -1,0 +1,5 @@
+{
+  "identifier": "mobile-capability",
+  "platforms": ["android"],
+  "permissions": ["core:default", "fs:allow-app-read", "fs:allow-app-write", "fs:scope-app", "shell:allow-open"]
+}

@@ -930,21 +930,148 @@ body {
     border-top: 1px solid var(--border);
 }
 
-/* ─── Responsive ───────────────────────────────────────────── */
+/* ─── Mobile / Responsive ───────────────────────────────────── */
+
+/* Bottom navigation for mobile */
+.bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    padding: 6px 0 env(safe-area-inset-bottom, 6px);
+    justify-content: space-around;
+    align-items: center;
+}
+
+.bottom-nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 500;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition);
+    -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav-btn.active {
+    color: var(--accent-green);
+}
+.bottom-nav-btn .bnav-icon {
+    font-size: 20px;
+    line-height: 1;
+}
 
 @media (max-width: 768px) {
-    .wallets-grid { grid-template-columns: 1fr; }
-    .calc-grid { grid-template-columns: 1fr; }
-    .stats-grid-3, .stats-grid-4 { grid-template-columns: 1fr 1fr; }
-    .content { padding: 16px; }
-    .nav { overflow-x: auto; padding: 0 12px; }
-    .nav-btn { font-size: 12px; padding: 10px 12px; }
-    .nav-icon { display: none; }
-    .file-item { grid-template-columns: 1fr auto; gap: 8px; }
+    /* ── Switch to bottom navigation ── */
+    .nav { display: none; }
+    .bottom-nav { display: flex; }
+    .content { padding: 16px 12px 80px 12px; }
+
+    /* ── Touch targets: minimum 44x44 ── */
+    .btn { min-height: 44px; padding: 10px 20px; font-size: 15px; }
+    .btn-sm { min-height: 40px; padding: 8px 16px; font-size: 13px; }
+    .btn-lg { min-height: 48px; padding: 14px 32px; font-size: 16px; }
+    .toggle-switch { min-height: 44px; }
+    .copy-btn { width: 44px; height: 44px; font-size: 20px; }
+    .nav-btn { min-height: 44px; }
+
+    /* ── Wallets: stack vertically ── */
+    .wallets-grid { grid-template-columns: 1fr; gap: 12px; }
+    .wallet-card { padding: 16px; }
+    .balance-amount { font-size: 28px; }
+
+    /* ── Calculator: stack ── */
+    .calc-grid { grid-template-columns: 1fr; gap: 16px; }
+
+    /* ── Stats: 2 columns ── */
+    .stats-grid-3, .stats-grid-4 { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-value { font-size: 20px; }
+
+    /* ── Files: card layout ── */
+    .file-item {
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        padding: 12px;
+        min-height: 60px;
+    }
     .file-icon { display: none; }
     .replica-badges { display: none; }
-    .setting-item { flex-direction: column; align-items: flex-start; }
-    .setting-item .input-field.small { width: 100%; }
+    .file-name { font-size: 14px; }
+
+    /* ── History: card layout ── */
+    .history-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding: 12px 0;
+    }
+    .history-amount { min-width: unset; text-align: left; }
+
+    /* ── Distribution: simpler ── */
+    .dist-row { grid-template-columns: 1fr 60px 40px; gap: 8px; }
+
+    /* ── Settings: full-width inputs ── */
+    .setting-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .setting-item .input-field.small,
+    .setting-item .select-field,
+    .setting-item textarea.small { width: 100%; max-width: 100%; }
+    .smtp-row { flex-direction: column; gap: 6px; }
+    .smtp-row .input-field.small { max-width: 100% !important; width: 100%; }
+    .peer-id-code { max-width: 100%; }
+
+    /* ── Modal: full screen on small devices ── */
+    .modal-content { padding: 20px 16px; width: 95%; }
+    .modal-content.wide { max-width: 95%; }
+
+    /* ── Onboarding: smaller padding ── */
+    .onboarding-container { padding: 1rem; }
+    .onboarding-title { font-size: 2rem; }
+    #onboard-actions { width: 100%; max-width: 320px; }
+    .mnemonic-box { font-size: 12px; padding: 12px; }
+
+    /* ── Header: compact ── */
+    .header { padding: 10px 12px; }
+    .header h1 { font-size: 16px; }
+    .version { display: none; }
+    .header-right { gap: 8px; }
+    .timer-badge { padding: 3px 6px; font-size: 11px; }
+
+    /* ── Keeper info rows ── */
+    .keeper-info-row span:first-child { min-width: 120px; font-size: 12px; }
+    .keeper-info-row { font-size: 12px; }
+    .keeper-actions-row { flex-wrap: wrap; }
+
+    /* ── Toggle slider bigger for touch ── */
+    .toggle-slider { width: 48px; height: 26px; }
+    .toggle-slider::after { width: 20px; height: 20px; }
+    .toggle-switch input:checked + .toggle-slider::after { transform: translateX(22px); }
+
+    /* ── Upload area ── */
+    .upload-area { padding: 24px 16px; }
+
+    /* ── Referral ── */
+    .referral-link-row { flex-direction: column; }
+    .referral-link-row .input-field { width: 100%; }
+    .referral-link-row .btn { width: 100%; }
+
+    /* ── Footer ── */
+    .app-footer { flex-wrap: wrap; gap: 8px; padding: 12px; font-size: 11px; }
 }
 
 /* ─── Footer ─── */

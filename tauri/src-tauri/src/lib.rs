@@ -578,6 +578,7 @@ fn sync_files_after_restore(state: State<AppState>) -> Result<String, String> {
 
 #[tauri::command]
 fn get_client_balance(state: State<AppState>) -> ClientBalanceResponse {
+    eprintln!("[SOTY CMD] get_client_balance called");
     tracing::info!("get_client_balance START");
     let credit_on = *state.credit_storage_enabled.lock().unwrap();
     let zero_ticks = *state.zero_balance_ticks.lock().unwrap();
@@ -586,6 +587,7 @@ fn get_client_balance(state: State<AppState>) -> ClientBalanceResponse {
         credit_on,
         zero_ticks,
     );
+    eprintln!("[SOTY CMD] get_client_balance returning");
     ClientBalanceResponse {
         balance: *state.client_balance.lock().unwrap(),
         bonus: *state.client_bonus.lock().unwrap(),

@@ -57,15 +57,18 @@ function toast(msg, type='info') {
 
 async function inv(cmd, args={}) {
     const INVOKE_TIMEOUT = 5000; // 5 seconds
+    let timerId;
     try {
+        const timeout = new Promise((_, reject) => {
+            timerId = setTimeout(() => reject(new Error('TIMEOUT ' + INVOKE_TIMEOUT + 'ms')), INVOKE_TIMEOUT);
+        });
         const result = await Promise.race([
-            invoke(cmd, args),
-            new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('TIMEOUT ' + INVOKE_TIMEOUT + 'ms')), INVOKE_TIMEOUT)
-            )
+            invoke(cmd, args).then(r => { clearTimeout(timerId); return r; }),
+            timeout
         ]);
         return result;
     } catch(e) {
+        if (timerId) clearTimeout(timerId);
         const errMsg = String(e.message || e);
         debugLog('inv[' + cmd + '] ERROR: ' + errMsg);
         toast('[' + cmd + '] ' + errMsg, 'error');

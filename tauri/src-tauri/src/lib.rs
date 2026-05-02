@@ -12,7 +12,7 @@
 //!   - Вывод: будни 10:00-18:00 МСК, мин. 100 ₽.
 //!   - Закрытие аккаунта: полный возврат баланса, бонусы сгорают.
 
-use tauri::State;
+use tauri::{Manager, State};
 use std::sync::Mutex;
 use serde::{Serialize, Deserialize};
 

@@ -1350,6 +1350,18 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            // Create debug log file immediately at app start
+            if let Some(log_dir) = app.path().app_log_dir().ok() {
+                let _ = std::fs::create_dir_all(&log_dir);
+                let log_path = log_dir.join("soty_debug.log");
+                if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
+                    let _ = writeln!(f, "[START] === Соты запущен, debug_log готов ===");
+                }
+                eprintln!("[SOTY] Debug log path: {:?}", log_path);
+            }
+            Ok(())
+        })
         .manage(AppState {
             initialized: Mutex::new(false),
             peer_id: Mutex::new(String::new()),

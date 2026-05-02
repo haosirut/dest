@@ -238,10 +238,13 @@ $('#btn-verify-cancel')?.addEventListener('click', () => {
 function showApp() {
     debugLog('showApp() called at ' + Date.now());
     $('#onboarding')?.classList.add('hidden');
+    debugLog('showApp: onboarding hidden');
     $('#app-main')?.classList.remove('hidden');
+    debugLog('showApp: app-main shown');
     state.initialized = true;
-    debugLog('UI switched to app-main, starting freeze diagnostics');
+    debugLog('showApp: state.initialized = true');
     startFreezeDiagnostics();
+    debugLog('showApp: freeze diagnostics started');
     setTimeout(() => {
         debugLog('refreshAll starting at ' + Date.now());
         refreshAll().then(() => {
@@ -250,6 +253,7 @@ function showApp() {
             debugLog('refreshAll ERROR: ' + (e.message || e));
         });
     }, 500);
+    debugLog('showApp() finished synchronously at ' + Date.now());
 }
 
 // ─── Tab Navigation ──────────────────────────────────────────

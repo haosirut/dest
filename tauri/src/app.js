@@ -261,13 +261,22 @@ function showApp() {
 
 // ─── Tab Navigation ──────────────────────────────────────────
 
-$$('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
-    debugLog('Tab clicked: ' + (btn.dataset?.tab || '?'));
-    $$('.nav-btn').forEach(b => b.classList.remove('active'));
+// Tab switching helper (shared by top-nav and bottom-nav)
+function switchTab(tabName) {
+    debugLog('Tab switched: ' + tabName);
+    // Update top nav (desktop)
+    $$('.nav-btn').forEach(b => { b.classList.toggle('active', b.dataset?.tab === tabName); });
+    // Update bottom nav (mobile)
+    $$('.bottom-nav-btn').forEach(b => { b.classList.toggle('active', b.dataset?.tab === tabName); });
+    // Switch tab panels
     $$('.tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    $(`#tab-${btn.dataset?.tab}`)?.classList.add('active');
-}));
+    $(`#tab-${tabName}`)?.classList.add('active');
+    // Scroll to top on mobile
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+$$('.nav-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset?.tab)));
+$$('.bottom-nav-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset?.tab)));
 
 // ─── Refresh ─────────────────────────────────────────────────
 

@@ -114,7 +114,7 @@ pub fn build_low_balance_html(peer_id: &str, balance: f64) -> String {
 
 /// Send a penalty notification. Returns true if email was sent, false if skipped.
 pub fn notify_penalty(
-    settings: &crate::AppSettings,
+    settings: &crate::models::AppSettings,
     peer_id: &str,
     level: &str,
     reason: &str,
@@ -137,7 +137,7 @@ pub fn notify_penalty(
 }
 
 /// Send a data-deletion notification.
-pub fn notify_data_delete(settings: &crate::AppSettings, peer_id: &str, reason: &str) -> bool {
+pub fn notify_data_delete(settings: &crate::models::AppSettings, peer_id: &str, reason: &str) -> bool {
     if !settings.notify_enabled || !settings.notify_data_delete {
         return false;
     }
@@ -155,7 +155,7 @@ pub fn notify_data_delete(settings: &crate::AppSettings, peer_id: &str, reason: 
 }
 
 /// Send a shutdown notification.
-pub fn notify_shutdown(settings: &crate::AppSettings, peer_id: &str, wait_seconds: u64) -> bool {
+pub fn notify_shutdown(settings: &crate::models::AppSettings, peer_id: &str, wait_seconds: u64) -> bool {
     if !settings.notify_enabled || !settings.notify_shutdown {
         return false;
     }
@@ -173,7 +173,7 @@ pub fn notify_shutdown(settings: &crate::AppSettings, peer_id: &str, wait_second
 }
 
 /// Send a low-balance notification.
-pub fn notify_low_balance(settings: &crate::AppSettings, peer_id: &str, balance: f64) -> bool {
+pub fn notify_low_balance(settings: &crate::models::AppSettings, peer_id: &str, balance: f64) -> bool {
     if !settings.notify_enabled || !settings.notify_low_balance {
         return false;
     }

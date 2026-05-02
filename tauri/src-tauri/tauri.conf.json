@@ -58,7 +58,6 @@
     }
   },
   "plugins": {
-    "store": { "path": "soty_store.bin" },
     "updater": {
       "active": true,
       "dialog": true,

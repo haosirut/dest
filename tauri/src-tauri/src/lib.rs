@@ -13,7 +13,7 @@
 //!   - Закрытие аккаунта: полный возврат баланса, бонусы сгорают.
 
 use tauri::{Manager, State};
-use std::sync::Mutex;
+use parking_lot::RwLock;
 use serde::{Serialize, Deserialize};
 
 pub(crate) mod notifications;
@@ -46,63 +46,63 @@ const SHUTDOWN_WAIT_SECONDS: u64 = 30;
 // ═══════════════════════════════════════════════════════════════
 
 struct AppState {
-    initialized: Mutex<bool>,
-    peer_id: Mutex<String>,
-    mnemonic: Mutex<String>,
-    mnemonic_shown_once: Mutex<bool>,
+    initialized: RwLock<bool>,
+    peer_id: RwLock<String>,
+    mnemonic: RwLock<String>,
+    mnemonic_shown_once: RwLock<bool>,
 
     // ── Client wallet ──
-    client_balance: Mutex<f64>,
-    client_bonus: Mutex<f64>,
-    credit_storage_enabled: Mutex<bool>,  // client side
-    zero_balance_ticks: Mutex<u32>,       // ticks since balance went to 0
+    client_balance: RwLock<f64>,
+    client_bonus: RwLock<f64>,
+    credit_storage_enabled: RwLock<bool>,  // client side
+    zero_balance_ticks: RwLock<u32>,       // ticks since balance went to 0
 
     // ── Keeper wallet ──
-    keeper_balance: Mutex<f64>,
-    keeper_pending: Mutex<f64>,
-    is_keeper: Mutex<bool>,
-    credit_storage_keeper: Mutex<bool>,   // keeper accepts credit data
+    keeper_balance: RwLock<f64>,
+    keeper_pending: RwLock<f64>,
+    is_keeper: RwLock<bool>,
+    credit_storage_keeper: RwLock<bool>,   // keeper accepts credit data
 
     // ── Keeper metrics ──
-    rating_pay: Mutex<f64>,
-    rating_alloc: Mutex<f64>,
-    availability_72h: Mutex<f64>,
-    avg_speed_mbps: Mutex<f64>,
-    has_white_ip: Mutex<bool>,
-    is_bootstrap: Mutex<bool>,
-    keeper_storage_gb: Mutex<f64>,
-    keeper_earnings_total: Mutex<f64>,
-    relay_enabled: Mutex<bool>,
-    relay_fail_pct_60min: Mutex<f64>,
-    _relay_incidents_24h: Mutex<u32>,
-    relay_banned_until_tick: Mutex<u32>,
-    relay_gray_clients: Mutex<u32>,
+    rating_pay: RwLock<f64>,
+    rating_alloc: RwLock<f64>,
+    availability_72h: RwLock<f64>,
+    avg_speed_mbps: RwLock<f64>,
+    has_white_ip: RwLock<bool>,
+    is_bootstrap: RwLock<bool>,
+    keeper_storage_gb: RwLock<f64>,
+    keeper_earnings_total: RwLock<f64>,
+    relay_enabled: RwLock<bool>,
+    relay_fail_pct_60min: RwLock<f64>,
+    _relay_incidents_24h: RwLock<u32>,
+    relay_banned_until_tick: RwLock<u32>,
+    relay_gray_clients: RwLock<u32>,
 
     // ── Network ──
-    connected_peers: Mutex<u32>,
-    storage_used_gb: Mutex<f64>,
-    current_tick: Mutex<u32>,
-    graceful_shutdown: Mutex<bool>,
+    connected_peers: RwLock<u32>,
+    storage_used_gb: RwLock<f64>,
+    current_tick: RwLock<u32>,
+    graceful_shutdown: RwLock<bool>,
 
     // ── Files & payments ──
-    files: Mutex<Vec<FileEntry>>,
-    payment_history: Mutex<Vec<PaymentRecord>>,
-    penalty_log: Mutex<Vec<PenaltyEntry>>,
-    active_warnings: Mutex<Vec<WarningEntry>>,
+    files: RwLock<Vec<FileEntry>>,
+    payment_history: RwLock<Vec<PaymentRecord>>,
+    penalty_log: RwLock<Vec<PenaltyEntry>>,
+    active_warnings: RwLock<Vec<WarningEntry>>,
 
     // ── Referral ──
-    referral_code: Mutex<String>,
-    referral_count: Mutex<u32>,
-    referral_earnings: Mutex<f64>,
-    has_referrer: Mutex<bool>,       // whether this user was referred by someone
+    referral_code: RwLock<String>,
+    referral_count: RwLock<u32>,
+    referral_earnings: RwLock<f64>,
+    has_referrer: RwLock<bool>,       // whether this user was referred by someone
 
     // ── Bonus entries with expiry ──
-    bonus_entries: Mutex<Vec<BonusEntry>>,
+    bonus_entries: RwLock<Vec<BonusEntry>>,
 
     // ── Settings ──
-    geo_verified: Mutex<bool>,
-    installation_id: Mutex<String>,
-    settings: Mutex<AppSettings>,
+    geo_verified: RwLock<bool>,
+    installation_id: RwLock<String>,
+    settings: RwLock<AppSettings>,
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -484,7 +484,7 @@ pub fn get_agency_contract_text() -> &'static str {
 
 #[tauri::command]
 fn check_initialized(state: State<AppState>) -> bool {
-    let init = *state.initialized.lock().unwrap();
+    let init = *state.initialized.read();
     tracing::info!("check_initialized -> {}", init);
     init
 }
@@ -506,18 +506,18 @@ fn create_wallet(state: State<AppState>) -> WalletInfo {
     ];
     let mnemonic = mnemonic_words.join(" ");
 
-    *state.initialized.lock().unwrap() = true;
-    *state.peer_id.lock().unwrap() = peer_id.clone();
-    *state.mnemonic.lock().unwrap() = mnemonic.clone();
-    *state.mnemonic_shown_once.lock().unwrap() = false;
-    *state.installation_id.lock().unwrap() = inst_id;
-    *state.referral_code.lock().unwrap() = format!("SOTY-{}", to_hex(&rng_state[..4]).to_uppercase());
-    *state.has_referrer.lock().unwrap() = false;
+    *state.initialized.write() = true;
+    *state.peer_id.write() = peer_id.clone();
+    *state.mnemonic.write() = mnemonic.clone();
+    *state.mnemonic_shown_once.write() = false;
+    *state.installation_id.write() = inst_id;
+    *state.referral_code.write() = format!("SOTY-{}", to_hex(&rng_state[..4]).to_uppercase());
+    *state.has_referrer.write() = false;
 
     WalletInfo {
         peer_id,
         mnemonic,
-        referral_code: state.referral_code.lock().unwrap().clone(),
+        referral_code: state.referral_code.write().clone(),
     }
 }
 
@@ -534,7 +534,7 @@ fn verify_mnemonic_words_cmd(
     positions: Vec<u32>,
     expected: Vec<String>,
 ) -> Result<bool, String> {
-    let mnemonic = state.mnemonic.lock().unwrap().clone();
+    let mnemonic = state.mnemonic.read().clone();
     if mnemonic.is_empty() {
         return Err("Мнемоническая фраза уже зашифрована".to_string());
     }
@@ -544,32 +544,32 @@ fn verify_mnemonic_words_cmd(
 #[tauri::command]
 fn confirm_mnemonic_shown(state: State<AppState>) -> Result<(), String> {
     tracing::info!("confirm_mnemonic_shown");
-    *state.mnemonic_shown_once.lock().unwrap() = true;
+    *state.mnemonic_shown_once.write() = true;
     Ok(())
 }
 
 #[tauri::command]
 fn get_wallet_info(state: State<AppState>) -> WalletInfo {
     WalletInfo {
-        peer_id: state.peer_id.lock().unwrap().clone(),
-        mnemonic: if *state.mnemonic_shown_once.lock().unwrap() {
+        peer_id: state.peer_id.read().clone(),
+        mnemonic: if *state.mnemonic_shown_once.read() {
             String::new()
         } else {
-            state.mnemonic.lock().unwrap().clone()
+            state.mnemonic.read().clone()
         },
-        referral_code: state.referral_code.lock().unwrap().clone(),
+        referral_code: state.referral_code.read().clone(),
     }
 }
 
 /// After restoring from mnemonic, sync file list via DHT.
 #[tauri::command]
 fn sync_files_after_restore(state: State<AppState>) -> Result<String, String> {
-    if !*state.initialized.lock().unwrap() {
+    if !*state.initialized.read() {
         return Err("Кошелёк не инициализирован".to_string());
     }
     // Production: query DHT for file manifest, reconstruct file list
     Ok(format!("Синхронизация файлов для {} запущена через DHT",
-        state.peer_id.lock().unwrap()))
+        state.peer_id.read()))
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -580,31 +580,31 @@ fn sync_files_after_restore(state: State<AppState>) -> Result<String, String> {
 fn get_client_balance(state: State<AppState>) -> ClientBalanceResponse {
     eprintln!("[SOTY CMD] get_client_balance called");
     tracing::info!("get_client_balance START");
-    let credit_on = *state.credit_storage_enabled.lock().unwrap();
-    let zero_ticks = *state.zero_balance_ticks.lock().unwrap();
+    let credit_on = *state.credit_storage_enabled.read();
+    let zero_ticks = *state.zero_balance_ticks.read();
     let (credit_action, credit_remaining) = credit_storage_state(
-        *state.client_balance.lock().unwrap(),
+        *state.client_balance.read(),
         credit_on,
         zero_ticks,
     );
     eprintln!("[SOTY CMD] get_client_balance returning");
     ClientBalanceResponse {
-        balance: *state.client_balance.lock().unwrap(),
-        bonus: *state.client_bonus.lock().unwrap(),
+        balance: *state.client_balance.read(),
+        bonus: *state.client_bonus.read(),
         currency: "RUB".to_string(),
         credit_storage_enabled: credit_on,
         credit_action,
         credit_ticks_remaining: credit_remaining,
-        low_balance_warning: *state.client_balance.lock().unwrap() < 10.0 && *state.storage_used_gb.lock().unwrap() > 0.0,
+        low_balance_warning: *state.client_balance.read() < 10.0 && *state.storage_used_gb.read() > 0.0,
     }
 }
 
 #[tauri::command]
 fn get_keeper_balance(state: State<AppState>) -> KeeperBalanceResponse {
     tracing::info!("get_keeper_balance START");
-    let pending = *state.keeper_pending.lock().unwrap();
+    let pending = *state.keeper_pending.read();
     KeeperBalanceResponse {
-        balance: *state.keeper_balance.lock().unwrap(),
+        balance: *state.keeper_balance.read(),
         pending,
         can_withdraw: pending >= PAYOUT_MIN,
         currency: "RUB".to_string(),
@@ -618,17 +618,17 @@ fn get_keeper_balance(state: State<AppState>) -> KeeperBalanceResponse {
 
 #[tauri::command]
 fn get_payment_history(state: State<AppState>) -> Vec<PaymentRecord> {
-    state.payment_history.lock().unwrap().clone()
+    state.payment_history.read().clone()
 }
 
 #[tauri::command]
 fn topup_client(state: State<AppState>, amount: f64, method: String) -> TopupResponse {
     let commission = if method == "card" { amount * 0.025 } else { 0.0 };
     let total = amount + commission;
-    *state.client_balance.lock().unwrap() += amount;
-    *state.zero_balance_ticks.lock().unwrap() = 0;
+    *state.client_balance.write() += amount;
+    *state.zero_balance_ticks.write() = 0;
 
-    state.payment_history.lock().unwrap().push(PaymentRecord {
+    state.payment_history.write().push(PaymentRecord {
         id: uuid_str(),
         kind: "deposit".to_string(),
         amount,
@@ -643,17 +643,17 @@ fn topup_client(state: State<AppState>, amount: f64, method: String) -> TopupRes
 
 #[tauri::command]
 fn request_payout(state: State<AppState>) -> Result<String, String> {
-    let balance = *state.keeper_balance.lock().unwrap();
+    let balance = *state.keeper_balance.write();
     if balance < PAYOUT_MIN {
         return Err(format!("Минимальная сумма вывода: {} ₽. Текущий баланс: {:.2} ₽", PAYOUT_MIN, balance));
     }
     // Validate time: weekdays 10:00-18:00 MSK
     validate_withdraw_time()?;
 
-    *state.keeper_balance.lock().unwrap() = 0.0;
-    *state.keeper_pending.lock().unwrap() = 0.0;
+    *state.keeper_balance.write() = 0.0;
+    *state.keeper_pending.write() = 0.0;
 
-    state.payment_history.lock().unwrap().push(PaymentRecord {
+    state.payment_history.write().push(PaymentRecord {
         id: uuid_str(), kind: "payout".to_string(), amount: -balance,
         wallet: "keeper".to_string(), description: "Вывод средств".to_string(), timestamp: now_str(),
     });
@@ -663,21 +663,21 @@ fn request_payout(state: State<AppState>) -> Result<String, String> {
 /// Close client account: refund full balance, delete all files, forfeit bonuses.
 #[tauri::command]
 fn close_client_account(state: State<AppState>) -> Result<CloseAccountResponse, String> {
-    let balance = *state.client_balance.lock().unwrap();
-    let bonus = *state.client_bonus.lock().unwrap();
+    let balance = *state.client_balance.write();
+    let bonus = *state.client_bonus.write();
     let (refund, forfeited) = calculate_close_account_refund(balance, bonus);
 
-    let files_count = state.files.lock().unwrap().len();
+    let files_count = state.files.write().len();
 
     // Delete all files
-    state.files.lock().unwrap().clear();
-    *state.storage_used_gb.lock().unwrap() = 0.0;
-    *state.client_balance.lock().unwrap() = 0.0;
-    *state.client_bonus.lock().unwrap() = 0.0;
-    *state.zero_balance_ticks.lock().unwrap() = 0;
-    state.bonus_entries.lock().unwrap().clear();
+    state.files.write().clear();
+    *state.storage_used_gb.write() = 0.0;
+    *state.client_balance.write() = 0.0;
+    *state.client_bonus.write() = 0.0;
+    *state.zero_balance_ticks.write() = 0;
+    state.bonus_entries.write().clear();
 
-    state.payment_history.lock().unwrap().push(PaymentRecord {
+    state.payment_history.write().push(PaymentRecord {
         id: uuid_str(), kind: "account_close".to_string(), amount: -refund,
         wallet: "client".to_string(),
         description: format!("Закрытие аккаунта: возврат {:.2} ₽", refund),
@@ -685,8 +685,8 @@ fn close_client_account(state: State<AppState>) -> Result<CloseAccountResponse, 
     });
 
     // Send notification (non-blocking)
-    let settings = state.settings.lock().unwrap().clone();
-    let pid = state.peer_id.lock().unwrap().clone();
+    let settings = state.settings.write().clone();
+    let pid = state.peer_id.write().clone();
     std::thread::spawn(move || {
         notifications::notify_data_delete(&settings, &pid, "Аккаунт закрыт пользователем");
     });
@@ -726,14 +726,14 @@ fn calculate_storage_cost(gb: f64, disk_type: String, credit: bool) -> CalcRespo
 
 #[tauri::command]
 fn get_files(state: State<AppState>) -> Vec<FileEntry> {
-    state.files.lock().unwrap().clone()
+    state.files.read().clone()
 }
 
 #[tauri::command]
 fn upload_file(state: State<AppState>, name: String, size_bytes: u64, disk_type: String) -> Result<FileEntry, String> {
-    let credit_on = *state.credit_storage_enabled.lock().unwrap();
-    let zero_ticks = *state.zero_balance_ticks.lock().unwrap();
-    let bal = *state.client_balance.lock().unwrap();
+    let credit_on = *state.credit_storage_enabled.write();
+    let zero_ticks = *state.zero_balance_ticks.write();
+    let bal = *state.client_balance.write();
     if bal <= 0.0 && credit_on && zero_ticks > 0 {
         return Err("Загрузки заблокированы: нулевой баланс. Пополните в течение кредитного периода.".to_string());
     }
@@ -752,18 +752,18 @@ fn upload_file(state: State<AppState>, name: String, size_bytes: u64, disk_type:
         disk_type: disk_type.clone(), uploaded_at: now_str(),
         cost_per_month: cost_month, is_credit,
     };
-    state.files.lock().unwrap().push(entry.clone());
+    state.files.write().push(entry.clone());
 
-    let mut bonus = state.client_bonus.lock().unwrap();
-    let mut balance = state.client_balance.lock().unwrap();
+    let mut bonus = state.client_bonus.write();
+    let mut balance = state.client_balance.write();
     let mut remaining = charge_tick;
     let from_bonus = remaining.min(*bonus);
     *bonus -= from_bonus;
     remaining -= from_bonus;
     *balance -= remaining;
-    *state.storage_used_gb.lock().unwrap() += gb;
+    *state.storage_used_gb.write() += gb;
 
-    state.payment_history.lock().unwrap().push(PaymentRecord {
+    state.payment_history.write().push(PaymentRecord {
         id: uuid_str(), kind: "storage_fee".to_string(), amount: -charge_tick,
         wallet: "client".to_string(),
         description: format!("Хранение: {} ({}){}", entry.name, disk_type, if is_credit { " [кредит]" } else { "" }),
@@ -775,11 +775,11 @@ fn upload_file(state: State<AppState>, name: String, size_bytes: u64, disk_type:
 
 #[tauri::command]
 fn delete_file(state: State<AppState>, file_id: String) -> Result<(), String> {
-    let mut files = state.files.lock().unwrap();
+    let mut files = state.files.write();
     if let Some(idx) = files.iter().position(|f| f.id == file_id) {
         let file = files.remove(idx);
         let gb = file.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-        *state.storage_used_gb.lock().unwrap() -= gb;
+        *state.storage_used_gb.write() -= gb;
         Ok(())
     } else {
         Err("Файл не найден".to_string())
@@ -797,45 +797,45 @@ fn download_file(_state: State<AppState>, _file_id: String) -> Result<String, St
 
 #[tauri::command]
 fn toggle_keeper_mode(state: State<AppState>, enabled: bool) -> bool {
-    *state.is_keeper.lock().unwrap() = enabled;
+    *state.is_keeper.write() = enabled;
     enabled
 }
 
 #[tauri::command]
 fn get_keeper_stats(state: State<AppState>) -> KeeperStatsResponse {
     tracing::info!("get_keeper_stats START");
-    let rp = *state.rating_pay.lock().unwrap();
-    let ra = *state.rating_alloc.lock().unwrap();
-    let relay_on = *state.relay_enabled.lock().unwrap();
-    let relay_ban = *state.relay_banned_until_tick.lock().unwrap();
-    let cur_tick = *state.current_tick.lock().unwrap();
-    let gray = *state.relay_gray_clients.lock().unwrap();
-    let fail_pct = *state.relay_fail_pct_60min.lock().unwrap();
+    let rp = *state.rating_pay.read();
+    let ra = *state.rating_alloc.read();
+    let relay_on = *state.relay_enabled.read();
+    let relay_ban = *state.relay_banned_until_tick.read();
+    let cur_tick = *state.current_tick.read();
+    let gray = *state.relay_gray_clients.read();
+    let fail_pct = *state.relay_fail_pct_60min.read();
     KeeperStatsResponse {
-        is_active: *state.is_keeper.lock().unwrap(),
+        is_active: *state.is_keeper.read(),
         rating_pay: rp,
         rating_alloc: ra,
-        storage_provided_gb: *state.keeper_storage_gb.lock().unwrap(),
-        earnings_total: *state.keeper_earnings_total.lock().unwrap(),
-        connected_peers: *state.connected_peers.lock().unwrap(),
-        has_white_ip: *state.has_white_ip.lock().unwrap(),
-        is_bootstrap: *state.is_bootstrap.lock().unwrap(),
-        credit_storage_keeper: *state.credit_storage_keeper.lock().unwrap(),
-        relay_enabled: relay_on && relay_ban <= cur_tick && check_relay_eligibility(*state.has_white_ip.lock().unwrap(), gray, fail_pct),
+        storage_provided_gb: *state.keeper_storage_gb.read(),
+        earnings_total: *state.keeper_earnings_total.read(),
+        connected_peers: *state.connected_peers.read(),
+        has_white_ip: *state.has_white_ip.read(),
+        is_bootstrap: *state.is_bootstrap.read(),
+        credit_storage_keeper: *state.credit_storage_keeper.read(),
+        relay_enabled: relay_on && relay_ban <= cur_tick && check_relay_eligibility(*state.has_white_ip.read(), gray, fail_pct),
         relay_banned: relay_ban > cur_tick,
         relay_gray_clients: gray,
         relay_fail_pct: fail_pct,
-        relay_bonus_note: if relay_on && relay_ban <= cur_tick && check_relay_eligibility(*state.has_white_ip.lock().unwrap(), gray, fail_pct) {
+        relay_bonus_note: if relay_on && relay_ban <= cur_tick && check_relay_eligibility(*state.has_white_ip.read(), gray, fail_pct) {
             Some("Активен relay +2% к выплате".to_string())
         } else {
             None
         },
-        bootstrap_note: if *state.is_bootstrap.lock().unwrap() {
+        bootstrap_note: if *state.is_bootstrap.read() {
             Some("Bootstrap-узел +1% к выплате".to_string())
         } else {
             None
         },
-        warnings: state.active_warnings.lock().unwrap().iter()
+        warnings: state.active_warnings.read().iter()
             .filter(|w| w.expires_at_tick > cur_tick)
             .map(|w| w.message.clone())
             .collect(),
@@ -845,42 +845,42 @@ fn get_keeper_stats(state: State<AppState>) -> KeeperStatsResponse {
 #[tauri::command]
 fn get_client_stats(state: State<AppState>) -> ClientStatsResponse {
     ClientStatsResponse {
-        storage_used_gb: *state.storage_used_gb.lock().unwrap(),
-        files_count: state.files.lock().unwrap().len() as u32,
-        connected_peers: *state.connected_peers.lock().unwrap(),
-        monthly_cost: state.files.lock().unwrap().iter().map(|f| f.cost_per_month).sum(),
-        credit_storage_enabled: *state.credit_storage_enabled.lock().unwrap(),
+        storage_used_gb: *state.storage_used_gb.read(),
+        files_count: state.files.read().len() as u32,
+        connected_peers: *state.connected_peers.read(),
+        monthly_cost: state.files.read().iter().map(|f| f.cost_per_month).sum(),
+        credit_storage_enabled: *state.credit_storage_enabled.read(),
     }
 }
 
 #[tauri::command]
 fn get_network_status(state: State<AppState>) -> NetworkStatusResponse {
     NetworkStatusResponse {
-        connected_peers: *state.connected_peers.lock().unwrap(),
+        connected_peers: *state.connected_peers.read(),
         status: "connected".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        current_tick: *state.current_tick.lock().unwrap(),
+        current_tick: *state.current_tick.read(),
     }
 }
 
 #[tauri::command]
 fn toggle_relay(state: State<AppState>, enabled: bool) -> Result<bool, String> {
-    if enabled && !*state.has_white_ip.lock().unwrap() {
+    if enabled && !*state.has_white_ip.write() {
         return Err("Relay требует белого IP-адреса".to_string());
     }
-    *state.relay_enabled.lock().unwrap() = enabled;
+    *state.relay_enabled.write() = enabled;
     Ok(enabled)
 }
 
 /// Graceful shutdown: broadcast signed ShutdownNotice, wait 30s, then exit.
 #[tauri::command]
 fn initiate_shutdown(state: State<AppState>, app: tauri::AppHandle) -> Result<String, String> {
-    if !*state.is_keeper.lock().unwrap() {
+    if !*state.is_keeper.write() {
         return Err("Режим хранителя не активен".to_string());
     }
-    *state.graceful_shutdown.lock().unwrap() = true;
+    *state.graceful_shutdown.write() = true;
 
-    let peer_id = state.peer_id.lock().unwrap().clone();
+    let peer_id = state.peer_id.write().clone();
     // Production: broadcast signed ShutdownNotice to network
     // Network exempts this node from penalties for 15 minutes
 
@@ -897,8 +897,8 @@ fn initiate_shutdown(state: State<AppState>, app: tauri::AppHandle) -> Result<St
 /// Send shutdown notification (called separately from initiate_shutdown).
 #[tauri::command]
 fn send_shutdown_notification(state: State<AppState>) {
-    let settings = state.settings.lock().unwrap().clone();
-    let peer_id = state.peer_id.lock().unwrap().clone();
+    let settings = state.settings.read().clone();
+    let peer_id = state.peer_id.read().clone();
     std::thread::spawn(move || {
         notifications::notify_shutdown(&settings, &peer_id, SHUTDOWN_WAIT_SECONDS);
     });
@@ -907,10 +907,10 @@ fn send_shutdown_notification(state: State<AppState>) {
 /// Send low-balance notification.
 #[tauri::command]
 fn send_low_balance_notification(state: State<AppState>) {
-    let balance = *state.client_balance.lock().unwrap();
-    if balance < 10.0 && *state.storage_used_gb.lock().unwrap() > 0.0 {
-        let settings = state.settings.lock().unwrap().clone();
-        let peer_id = state.peer_id.lock().unwrap().clone();
+    let balance = *state.client_balance.read();
+    if balance < 10.0 && *state.storage_used_gb.read() > 0.0 {
+        let settings = state.settings.read().clone();
+        let peer_id = state.peer_id.read().clone();
         std::thread::spawn(move || {
             notifications::notify_low_balance(&settings, &peer_id, balance);
         });
@@ -924,10 +924,10 @@ fn send_low_balance_notification(state: State<AppState>) {
 #[tauri::command]
 fn get_referral_info(state: State<AppState>) -> ReferralInfoResponse {
     ReferralInfoResponse {
-        referral_code: state.referral_code.lock().unwrap().clone(),
-        referral_link: format!("https://soty.net/r/{}", state.referral_code.lock().unwrap()),
-        invited_count: *state.referral_count.lock().unwrap(),
-        total_earnings: *state.referral_earnings.lock().unwrap(),
+        referral_code: state.referral_code.read().clone(),
+        referral_link: format!("https://soty.net/r/{}", state.referral_code.read()),
+        invited_count: *state.referral_count.read(),
+        total_earnings: *state.referral_earnings.read(),
         note: "Бонусные баллы клиента сгорают через 12 месяцев".to_string(),
     }
 }
@@ -938,40 +938,40 @@ fn get_referral_info(state: State<AppState>) -> ReferralInfoResponse {
 
 #[tauri::command]
 fn get_settings(state: State<AppState>) -> AppSettings {
-    state.settings.lock().unwrap().clone()
+    state.settings.read().clone()
 }
 
 #[tauri::command]
 fn save_settings(state: State<AppState>, settings: AppSettings) -> Result<(), String> {
-    *state.credit_storage_enabled.lock().unwrap() = settings.credit_storage_client;
-    *state.credit_storage_keeper.lock().unwrap() = settings.credit_storage_keeper;
-    *state.settings.lock().unwrap() = settings;
+    *state.credit_storage_enabled.write() = settings.credit_storage_client;
+    *state.credit_storage_keeper.write() = settings.credit_storage_keeper;
+    *state.settings.write() = settings;
     Ok(())
 }
 
 #[tauri::command]
 fn check_geo(state: State<AppState>) -> GeoResponse {
-    let verified = *state.geo_verified.lock().unwrap();
+    let verified = *state.geo_verified.read();
     GeoResponse {
         verified, country: if verified { "RU".to_string() } else { "Не определено".to_string() },
         ip: "185.xx.xx.xx".to_string(),
-        has_white_ip: *state.has_white_ip.lock().unwrap(),
-        installation_id: state.installation_id.lock().unwrap().clone(),
+        has_white_ip: *state.has_white_ip.read(),
+        installation_id: state.installation_id.read().clone(),
     }
 }
 
 #[tauri::command]
 fn toggle_credit_storage_client(state: State<AppState>, enabled: bool) -> bool {
-    *state.credit_storage_enabled.lock().unwrap() = enabled;
-    let mut settings = state.settings.lock().unwrap();
+    *state.credit_storage_enabled.write() = enabled;
+    let mut settings = state.settings.write();
     settings.credit_storage_client = enabled;
     enabled
 }
 
 #[tauri::command]
 fn toggle_credit_storage_keeper(state: State<AppState>, enabled: bool) -> bool {
-    *state.credit_storage_keeper.lock().unwrap() = enabled;
-    let mut settings = state.settings.lock().unwrap();
+    *state.credit_storage_keeper.write() = enabled;
+    let mut settings = state.settings.write();
     settings.credit_storage_keeper = enabled;
     enabled
 }
@@ -982,13 +982,13 @@ fn toggle_credit_storage_keeper(state: State<AppState>, enabled: bool) -> bool {
 
 #[tauri::command]
 fn get_penalties(state: State<AppState>) -> Vec<PenaltyEntry> {
-    state.penalty_log.lock().unwrap().clone()
+    state.penalty_log.read().clone()
 }
 
 #[tauri::command]
 fn get_warnings(state: State<AppState>) -> Vec<WarningEntry> {
-    let cur = *state.current_tick.lock().unwrap();
-    state.active_warnings.lock().unwrap().iter()
+    let cur = *state.current_tick.read();
+    state.active_warnings.read().iter()
         .filter(|w| w.expires_at_tick > cur)
         .cloned().collect()
 }
@@ -1043,49 +1043,49 @@ fn get_next_calc_time() -> NextCalcResponse {
 fn simulate_tick(state: State<AppState>) -> TickResponse {
     tracing::info!("simulate_tick START");
     let tick = {
-        let mut t = state.current_tick.lock().unwrap();
+        let mut t = state.current_tick.write();
         *t += 1;
         *t
     };
 
-    let is_keeper = *state.is_keeper.lock().unwrap();
+    let is_keeper = *state.is_keeper.write();
 
     // ── Update keeper ratings ──
     if is_keeper {
-        let mut avail = state.availability_72h.lock().unwrap();
+        let mut avail = state.availability_72h.write();
         *avail = (*avail + 0.002).min(1.0);
-        let mut speed = state.avg_speed_mbps.lock().unwrap();
+        let mut speed = state.avg_speed_mbps.write();
         *speed = (*speed + 0.5).min(150.0);
 
         let rp = calc_rating_pay(*avail, *speed);
         let ra = calc_rating_alloc(
             *avail,
             *speed,
-            *state.has_white_ip.lock().unwrap(),
-            *state.is_bootstrap.lock().unwrap(),
-            *state.credit_storage_keeper.lock().unwrap(),
+            *state.has_white_ip.write(),
+            *state.is_bootstrap.write(),
+            *state.credit_storage_keeper.write(),
         );
-        *state.rating_pay.lock().unwrap() = rp;
-        *state.rating_alloc.lock().unwrap() = ra;
+        *state.rating_pay.write() = rp;
+        *state.rating_alloc.write() = ra;
 
         // Bootstrap eligibility: rating_pay=1.0, storage>1TB, white IP
-        if rp >= 1.0 && *state.keeper_storage_gb.lock().unwrap() >= 1000.0 && *state.has_white_ip.lock().unwrap() {
-            *state.is_bootstrap.lock().unwrap() = true;
-        } else if rp < 1.0 && *state.is_bootstrap.lock().unwrap() {
+        if rp >= 1.0 && *state.keeper_storage_gb.write() >= 1000.0 && *state.has_white_ip.write() {
+            *state.is_bootstrap.write() = true;
+        } else if rp < 1.0 && *state.is_bootstrap.write() {
             // Lost bootstrap status if no longer eligible
-            *state.is_bootstrap.lock().unwrap() = false;
+            *state.is_bootstrap.write() = false;
         }
 
         // ── Relay auto-disable on failure ──
-        if *state.relay_enabled.lock().unwrap() {
+        if *state.relay_enabled.write() {
             let eligible = check_relay_eligibility(
-                *state.has_white_ip.lock().unwrap(),
-                *state.relay_gray_clients.lock().unwrap(),
-                *state.relay_fail_pct_60min.lock().unwrap(),
+                *state.has_white_ip.write(),
+                *state.relay_gray_clients.write(),
+                *state.relay_fail_pct_60min.write(),
             );
             if !eligible {
-                *state.relay_enabled.lock().unwrap() = false;
-                state.active_warnings.lock().unwrap().push(WarningEntry {
+                *state.relay_enabled.write() = false;
+                state.active_warnings.write().push(WarningEntry {
                     id: uuid_str(),
                     target: "keeper".into(),
                     message: "Relay автоотключён: превышение лимитов (серые клиенты или % ошибок)".into(),
@@ -1097,30 +1097,30 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
     }
 
     // ── Keeper earnings ──
-    if is_keeper && !*state.graceful_shutdown.lock().unwrap() {
-        let storage_gb = *state.keeper_storage_gb.lock().unwrap();
-        let rp = *state.rating_pay.lock().unwrap();
+    if is_keeper && !*state.graceful_shutdown.write() {
+        let storage_gb = *state.keeper_storage_gb.write();
+        let rp = *state.rating_pay.write();
         let base_price = get_price("hdd");
         let earnings_per_tick = storage_gb * base_price * KEEPER_BASE_PCT * rp / TICKS_PER_MONTH;
 
         let mut earning = earnings_per_tick;
-        if *state.relay_enabled.lock().unwrap() {
-            let relay_ban = *state.relay_banned_until_tick.lock().unwrap();
+        if *state.relay_enabled.write() {
+            let relay_ban = *state.relay_banned_until_tick.write();
             if relay_ban <= tick {
                 earning += storage_gb * base_price * RELAY_BONUS_PCT * rp / TICKS_PER_MONTH;
             }
         }
-        if *state.is_bootstrap.lock().unwrap() {
+        if *state.is_bootstrap.write() {
             earning += storage_gb * base_price * BOOTSTRAP_BONUS_PCT * rp / TICKS_PER_MONTH;
         }
 
-        *state.keeper_balance.lock().unwrap() += earning;
-        *state.keeper_pending.lock().unwrap() += earning;
-        *state.keeper_earnings_total.lock().unwrap() += earning;
+        *state.keeper_balance.write() += earning;
+        *state.keeper_pending.write() += earning;
+        *state.keeper_earnings_total.write() += earning;
     }
 
     // ── Client charges ──
-    let files = state.files.lock().unwrap();
+    let files = state.files.write();
     let mut total_charge = 0.0;
     for f in files.iter() {
         let gb = f.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
@@ -1130,35 +1130,35 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
     drop(files);
 
     if total_charge > 0.0 {
-        let mut bonus = state.client_bonus.lock().unwrap();
-        let mut bal = state.client_balance.lock().unwrap();
+        let mut bonus = state.client_bonus.write();
+        let mut bal = state.client_balance.write();
         let from_bonus = total_charge.min(*bonus);
         *bonus -= from_bonus;
         *bal -= total_charge - from_bonus;
     }
 
     // ── Low-balance notification (non-blocking) ──
-    let bal_notify = *state.client_balance.lock().unwrap();
-    if bal_notify < 10.0 && *state.storage_used_gb.lock().unwrap() > 0.0 {
-        let settings = state.settings.lock().unwrap().clone();
-        let pid = state.peer_id.lock().unwrap().clone();
+    let bal_notify = *state.client_balance.write();
+    if bal_notify < 10.0 && *state.storage_used_gb.write() > 0.0 {
+        let settings = state.settings.write().clone();
+        let pid = state.peer_id.write().clone();
         std::thread::spawn(move || {
             notifications::notify_low_balance(&settings, &pid, bal_notify);
         });
     }
 
     // ── Zero-balance handling ──
-    let bal = *state.client_balance.lock().unwrap();
+    let bal = *state.client_balance.write();
     if bal <= 0.0 {
-        let credit_on = *state.credit_storage_enabled.lock().unwrap();
+        let credit_on = *state.credit_storage_enabled.write();
         if credit_on {
-            let mut zt = state.zero_balance_ticks.lock().unwrap();
+            let mut zt = state.zero_balance_ticks.write();
             *zt += 1;
             if *zt >= CREDIT_PERIOD_TICKS {
-                let mut files = state.files.lock().unwrap();
+                let mut files = state.files.write();
                 files.clear();
-                *state.storage_used_gb.lock().unwrap() = 0.0;
-                state.penalty_log.lock().unwrap().push(PenaltyEntry {
+                *state.storage_used_gb.write() = 0.0;
+                state.penalty_log.write().push(PenaltyEntry {
                     id: uuid_str(), level: "high".into(), target: "client".into(),
                     reason: "Кредитный период (72 ч) истёк".into(),
                     action: "data_deleted".into(), tick,
@@ -1166,19 +1166,19 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
                 // Send notification (non-blocking)
                 drop(files);
                 {
-                    let settings = state.settings.lock().unwrap().clone();
-                    let pid = state.peer_id.lock().unwrap().clone();
+                    let settings = state.settings.write().clone();
+                    let pid = state.peer_id.write().clone();
                     std::thread::spawn(move || {
                         notifications::notify_data_delete(&settings, &pid, "Кредитный период (72 ч) истёк");
                     });
                 }
             }
         } else {
-            let mut files = state.files.lock().unwrap();
+            let mut files = state.files.write();
             if !files.is_empty() {
                 files.clear();
-                *state.storage_used_gb.lock().unwrap() = 0.0;
-                state.penalty_log.lock().unwrap().push(PenaltyEntry {
+                *state.storage_used_gb.write() = 0.0;
+                state.penalty_log.write().push(PenaltyEntry {
                     id: uuid_str(), level: "high".into(), target: "client".into(),
                     reason: "Баланс исчерпан, кредит не подключён".into(),
                     action: "data_deleted".into(), tick,
@@ -1186,8 +1186,8 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
                 drop(files);
                 // Send notification (non-blocking)
                 {
-                    let settings = state.settings.lock().unwrap().clone();
-                    let pid = state.peer_id.lock().unwrap().clone();
+                    let settings = state.settings.write().clone();
+                    let pid = state.peer_id.write().clone();
                     std::thread::spawn(move || {
                         notifications::notify_data_delete(&settings, &pid, "Баланс исчерпан, кредит не подключён");
                     });
@@ -1195,24 +1195,24 @@ fn simulate_tick(state: State<AppState>) -> TickResponse {
             }
         }
     } else {
-        *state.zero_balance_ticks.lock().unwrap() = 0;
+        *state.zero_balance_ticks.write() = 0;
     }
 
     // ── Expire old bonuses ──
-    let _expired = expire_bonuses(&mut state.bonus_entries.lock().unwrap(), tick);
+    let _expired = expire_bonuses(&mut state.bonus_entries.write(), tick);
 
     TickResponse {
-        client_balance: *state.client_balance.lock().unwrap(),
-        client_bonus: *state.client_bonus.lock().unwrap(),
-        keeper_balance: *state.keeper_balance.lock().unwrap(),
-        rating_pay: *state.rating_pay.lock().unwrap(),
-        rating_alloc: *state.rating_alloc.lock().unwrap(),
+        client_balance: *state.client_balance.write(),
+        client_bonus: *state.client_bonus.write(),
+        keeper_balance: *state.keeper_balance.write(),
+        rating_pay: *state.rating_pay.write(),
+        rating_alloc: *state.rating_alloc.write(),
         current_tick: tick,
-        zero_balance_ticks: *state.zero_balance_ticks.lock().unwrap(),
+        zero_balance_ticks: *state.zero_balance_ticks.write(),
         credit_action: credit_storage_state(
-            *state.client_balance.lock().unwrap(),
-            *state.credit_storage_enabled.lock().unwrap(),
-            *state.zero_balance_ticks.lock().unwrap(),
+            *state.client_balance.write(),
+            *state.credit_storage_enabled.write(),
+            *state.zero_balance_ticks.write(),
         ).0,
     }
 }
@@ -1339,12 +1339,12 @@ pub fn run() {
     let log_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let file_appender = tracing_appender::rolling::never(&log_dir, "soty-debug.log");
     let (non_blocking_writer, _log_guard) = tracing_appender::non_blocking(file_appender);
-    tracing_subscriber::fmt()
+    let _ = tracing_subscriber::fmt()
         .with_writer(non_blocking_writer)
         .with_ansi(false)
         .with_target(true)
         .with_max_level(tracing::Level::DEBUG)
-        .init();
+        .try_init();
     tracing::info!("=== Соты v{} started ===", env!("CARGO_PKG_VERSION"));
     tracing::info!("Log dir: {:?}", log_dir);
     tracing::info!("Log file: {:?}/soty-debug.log", log_dir);
@@ -1365,47 +1365,47 @@ pub fn run() {
             Ok(())
         })
         .manage(AppState {
-            initialized: Mutex::new(false),
-            peer_id: Mutex::new(String::new()),
-            mnemonic: Mutex::new(String::new()),
-            mnemonic_shown_once: Mutex::new(false),
-            client_balance: Mutex::new(0.0),
-            client_bonus: Mutex::new(0.0),
-            credit_storage_enabled: Mutex::new(false),
-            zero_balance_ticks: Mutex::new(0),
-            keeper_balance: Mutex::new(0.0),
-            keeper_pending: Mutex::new(0.0),
-            is_keeper: Mutex::new(false),
-            credit_storage_keeper: Mutex::new(false),
-            rating_pay: Mutex::new(0.0),
-            rating_alloc: Mutex::new(0.0),
-            availability_72h: Mutex::new(0.0),
-            avg_speed_mbps: Mutex::new(0.0),
-            has_white_ip: Mutex::new(false),
-            is_bootstrap: Mutex::new(false),
-            keeper_storage_gb: Mutex::new(0.0),
-            keeper_earnings_total: Mutex::new(0.0),
-            relay_enabled: Mutex::new(false),
-            relay_fail_pct_60min: Mutex::new(0.0),
-            _relay_incidents_24h: Mutex::new(0),
-            relay_banned_until_tick: Mutex::new(0),
-            relay_gray_clients: Mutex::new(0),
-            connected_peers: Mutex::new(0),
-            storage_used_gb: Mutex::new(0.0),
-            current_tick: Mutex::new(0),
-            graceful_shutdown: Mutex::new(false),
-            files: Mutex::new(Vec::new()),
-            payment_history: Mutex::new(Vec::new()),
-            penalty_log: Mutex::new(Vec::new()),
-            active_warnings: Mutex::new(Vec::new()),
-            referral_code: Mutex::new(String::new()),
-            referral_count: Mutex::new(0),
-            referral_earnings: Mutex::new(0.0),
-            has_referrer: Mutex::new(false),
-            bonus_entries: Mutex::new(Vec::new()),
-            geo_verified: Mutex::new(false),
-            installation_id: Mutex::new(String::new()),
-            settings: Mutex::new(AppSettings::default()),
+            initialized: RwLock::new(false),
+            peer_id: RwLock::new(String::new()),
+            mnemonic: RwLock::new(String::new()),
+            mnemonic_shown_once: RwLock::new(false),
+            client_balance: RwLock::new(0.0),
+            client_bonus: RwLock::new(0.0),
+            credit_storage_enabled: RwLock::new(false),
+            zero_balance_ticks: RwLock::new(0),
+            keeper_balance: RwLock::new(0.0),
+            keeper_pending: RwLock::new(0.0),
+            is_keeper: RwLock::new(false),
+            credit_storage_keeper: RwLock::new(false),
+            rating_pay: RwLock::new(0.0),
+            rating_alloc: RwLock::new(0.0),
+            availability_72h: RwLock::new(0.0),
+            avg_speed_mbps: RwLock::new(0.0),
+            has_white_ip: RwLock::new(false),
+            is_bootstrap: RwLock::new(false),
+            keeper_storage_gb: RwLock::new(0.0),
+            keeper_earnings_total: RwLock::new(0.0),
+            relay_enabled: RwLock::new(false),
+            relay_fail_pct_60min: RwLock::new(0.0),
+            _relay_incidents_24h: RwLock::new(0),
+            relay_banned_until_tick: RwLock::new(0),
+            relay_gray_clients: RwLock::new(0),
+            connected_peers: RwLock::new(0),
+            storage_used_gb: RwLock::new(0.0),
+            current_tick: RwLock::new(0),
+            graceful_shutdown: RwLock::new(false),
+            files: RwLock::new(Vec::new()),
+            payment_history: RwLock::new(Vec::new()),
+            penalty_log: RwLock::new(Vec::new()),
+            active_warnings: RwLock::new(Vec::new()),
+            referral_code: RwLock::new(String::new()),
+            referral_count: RwLock::new(0),
+            referral_earnings: RwLock::new(0.0),
+            has_referrer: RwLock::new(false),
+            bonus_entries: RwLock::new(Vec::new()),
+            geo_verified: RwLock::new(false),
+            installation_id: RwLock::new(String::new()),
+            settings: RwLock::new(AppSettings::default()),
         })
         .invoke_handler(tauri::generate_handler![
             check_initialized, create_wallet, restore_wallet,
